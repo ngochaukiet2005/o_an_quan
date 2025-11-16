@@ -10,8 +10,16 @@
       <button @click="onLeaveRoomClick" class="leave-button">Thoát phòng</button>
     </div>
 
-    <div class="game-layout">
+    <div v-if="gamePhase === 'playing'" class="game-layout">
       <div class="main-column">
+        <div v-if="timerValue !== null" class="timer-display">
+          Thời gian còn lại: <span>{{ timerValue }}s</span>
+        </div>
+
+        <div v-if="rpsResult" class="rps-result-message">
+          {{ rpsResult }}
+        </div>
+
         <PlayerInfo
           :players="players"
           :currentTurnId="currentTurnId"
@@ -36,6 +44,17 @@
       </div>
     </div>
 
+    <div v-if="gamePhase === 'loading' || gamePhase === 'rps'" class="loading-board">
+      <span v-if="gamePhase === 'loading'">Đang tải phòng...</span>
+      <span v-if="gamePhase === 'rps'">Đang chờ Oẳn tù tì...</span>
+    </div>
+
+    <RpsModal
+      :show="gamePhase === 'rps'"
+      :is-retry="isRpsRetry"
+      @choose="handleRpsChoice"
+    />
+
     <DirectionModal
       :show="showDirectionModal"
       @choose="onDirectionChosen"
@@ -56,11 +75,13 @@ import { ref, onMounted, onBeforeUnmount, computed, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import socketService from "../services/socketService";
 
+// Import components
 import ChatBox from "../components/ChatBox.vue";
 import PlayerInfo from "../components/PlayerInfo.vue";
 import GameBoard from "../components/GameBoard.vue";
 import DirectionModal from "../components/DirectionModal.vue";
 import NotificationModal from "../components/NotificationModal.vue";
+import RpsModal from "../components/RpsModal.vue"; // <-- IMPORT MODAL MỚI
 
 /* ===============================
             STATE
@@ -71,17 +92,19 @@ const router = useRouter();
 
 const roomId = computed(() => route.params.roomId);
 const playerName = computed(() => route.query.playerName);
-
-// Lấy playerId "phản ứng" từ service
 const playerId = socketService.getSocketIdReactive();
 
-const playerSymbol = ref("");
+// --- State mới ---
+const gamePhase = ref("loading"); // 'loading', 'rps', 'playing', 'game_over'
+const isRpsRetry = ref(false);
+const rpsResult = ref(null); // Lưu tin nhắn kết quả RPS
+const timerValue = ref(null);
+const timerInterval = ref(null);
+// --- State cũ ---
 const players = ref([]);
 const board = ref([]);
 const currentTurnId = ref(null);
 const messages = ref([]);
-
-// State cho Modals
 const showDirectionModal = ref(false);
 const selectedCellIndex = ref(null);
 const showGameOverModal = ref(false);
@@ -89,11 +112,14 @@ const gameOverTitle = ref("");
 const gameOverMessage = ref("");
 
 /* ===============================
-        HÀM XỬ LÝ
+        HÀM XỬ LÝ SỰ KIỆN
 ================================= */
 
+// Xử lý khi nhận state (từ 'game_start' hoặc 'update_game_state')
 function handleStateUpdate(state) {
   console.log("📌 Nhận state:", state);
+
+  gamePhase.value = "playing"; // Chuyển sang trạng thái chơi game
 
   if (state.board) {
     board.value = state.board;
@@ -115,50 +141,96 @@ function handleStateUpdate(state) {
   if (state.gameMessage) {
     messages.value.push({ senderName: "Hệ thống", message: state.gameMessage });
   }
+
+  // Xử lý tin nhắn kết quả RPS (chỉ chạy 1 lần khi game_start)
+  if (state.rpsResult) {
+    const { p1Choice, p2Choice, winnerId } = state.rpsResult;
+    const p1 = players.value.find((p) => p.symbol === "X");
+    const p2 = players.value.find((p) => p.symbol === "O");
+    
+    if (p1 && p2) {
+      let winnerName = winnerId === p1.id ? p1.name : p2.name;
+      rpsResult.value = `${p1.name} chọn ${p1Choice}, ${p2.name} chọn ${p2Choice}. ${winnerName} đi trước!`;
+
+      // Tự động xóa tin nhắn sau 5 giây
+      setTimeout(() => {
+        rpsResult.value = null;
+      }, 5000);
+    }
+  }
 }
 
-// Tách các hàm xử lý sự kiện ra riêng
 const onChatReceive = (msg) => {
   messages.value.push(msg);
 };
-
 const onPlayerJoined = (data) => {
   messages.value.push({
     senderName: "Hệ thống",
     message: `${data.name} đã vào phòng.`,
   });
 };
-
 const onError = (err) => {
   alert(err.message);
   console.error(err.message);
 };
+const onKicked = (data) => {
+  alert(data.message);
+  router.push("/play");
+};
 
-// Hàm dọn dẹp state
+// --- HÀM MỚI CHO LOGIC MỚI ---
+function onStartRps(data) {
+  isRpsRetry.value = data.isRetry;
+  gamePhase.value = "rps";
+}
+
+function onTimerStart(data) {
+  clearInterval(timerInterval.value);
+  timerValue.value = data.duration;
+
+  timerInterval.value = setInterval(() => {
+    if (timerValue.value !== null && timerValue.value > 0) {
+      timerValue.value--;
+    } else {
+      clearInterval(timerInterval.value);
+      timerValue.value = 0; // Hiển thị 0s trước khi server tự chuyển
+    }
+  }, 1000);
+}
+
+function onTimerClear() {
+  clearInterval(timerInterval.value);
+  timerValue.value = null;
+}
+// -----------------------------
+
 function resetState() {
   board.value = [];
   players.value = [];
   currentTurnId.value = null;
   messages.value = [];
-  playerSymbol.value = "";
   showDirectionModal.value = false;
   selectedCellIndex.value = null;
   showGameOverModal.value = false;
-}
-// === THÊM HÀM MỚI NÀY ===
-// Xử lý khi bị máy chủ kick (do đối thủ rời/disconnect)
-const onKicked = (data) => {
-  // data.message sẽ là "Đối thủ đã rời phòng. Bạn thắng!"
-  alert(data.message);
-  router.push("/play");
-};
-// =========================
 
-// Hàm cài đặt listener
+  // Reset state mới
+  clearInterval(timerInterval.value);
+  timerValue.value = null;
+  gamePhase.value = "loading";
+  isRpsRetry.value = false;
+  rpsResult.value = null;
+}
+
 function setupSocketListeners() {
-  socketService.offAll(); // Xóa listener cũ trước
+  socketService.offAll();
+
+  socketService.getSocket().on("game:start_rps", onStartRps);
   socketService.getSocket().on("game_start", handleStateUpdate);
   socketService.getSocket().on("update_game_state", handleStateUpdate);
+
+  socketService.getSocket().on("timer:start", onTimerStart);
+  socketService.getSocket().on("timer:clear", onTimerClear);
+
   socketService.getSocket().on("game_over", onGameOver);
   socketService.getSocket().on("chat:receive", onChatReceive);
   socketService.getSocket().on("room:player-joined", onPlayerJoined);
@@ -176,16 +248,13 @@ onMounted(() => {
   socketService.requestGameState();
 });
 
-// Sửa lỗi nút Back
 onBeforeUnmount(() => {
-  console.log("Rời phòng (unmount), thông báo cho server...");
-  socketService.leaveRoom(); // <-- Đã thêm ở lần sửa trước
+  socketService.leaveRoom();
   socketService.offAll();
 });
 
 watch(roomId, (newRoomId, oldRoomId) => {
   if (newRoomId && newRoomId !== oldRoomId) {
-    console.log(`Đổi phòng: ${oldRoomId} -> ${newRoomId}. Đang reset...`);
     resetState();
     setupSocketListeners();
     socketService.requestGameState();
@@ -196,21 +265,20 @@ watch(roomId, (newRoomId, oldRoomId) => {
         USER ACTIONS
 ================================= */
 
-// === HÀM MỚI CHO NÚT THOÁT PHÒNG ===
 function onLeaveRoomClick() {
-  // Sử dụng confirm() của trình duyệt để xác nhận
   const confirmed = confirm(
     "Bạn chắc chắn muốn rời phòng? Bạn sẽ bị xử thua."
   );
-
   if (confirmed) {
-    console.log("Người dùng xác nhận rời phòng. Điều hướng về /play...");
-    // Chúng ta chỉ cần điều hướng, onBeforeUnmount sẽ lo việc dọn dẹp
     router.push("/play");
   }
-  // Nếu không (confirmed = false), không làm gì cả
 }
-// =====================
+
+// (HÀM MỚI) Gửi lựa chọn Oẳn tù tì
+function handleRpsChoice(choice) {
+  socketService.submitRps(choice);
+  // UI "Đang chờ" được xử lý bên trong RpsModal.vue
+}
 
 function handleMove(index) {
   if (currentTurnId.value !== playerId.value) {
@@ -226,6 +294,7 @@ function onDirectionChosen(direction) {
   if (selectedCellIndex.value === null || !direction) {
     return;
   }
+  // Timer sẽ được server xóa
   socketService.makeMove({
     cellIndex: selectedCellIndex.value,
     direction: direction,
@@ -234,6 +303,9 @@ function onDirectionChosen(direction) {
 }
 
 const onGameOver = (data) => {
+  gamePhase.value = "game_over"; // Dừng game
+  onTimerClear(); // Xóa timer
+
   console.log("Game Over:", data);
   let winnerName = "Hòa!";
 
@@ -269,11 +341,10 @@ function sendMessage(text) {
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
 }
 
-/* === SỬA HEADER ĐỂ THÊM NÚT === */
 .room-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start; /* Căn nút và text lên trên */
+  align-items: flex-start;
   border-bottom: 1px solid #e5e7eb;
   padding-bottom: 10px;
   margin-bottom: 20px;
@@ -282,12 +353,14 @@ function sendMessage(text) {
   margin-top: 0;
 }
 .header-info {
-  flex-grow: 1; /* Cho phép text chiếm không gian */
+  flex-grow: 1;
+}
+.header-info p {
+  margin-bottom: 0;
 }
 
-/* === CSS CHO NÚT MỚI === */
 .leave-button {
-  background-color: #ef4444; /* Màu đỏ */
+  background-color: #ef4444;
   color: white;
   border: none;
   padding: 10px 16px;
@@ -296,13 +369,12 @@ function sendMessage(text) {
   font-weight: bold;
   font-size: 15px;
   transition: background-color 0.2s ease;
-  flex-shrink: 0; /* Ngăn nút bị co lại */
-  margin-left: 20px; /* Thêm khoảng cách */
+  flex-shrink: 0;
+  margin-left: 20px;
 }
 .leave-button:hover {
-  background-color: #dc2626; /* Màu đỏ đậm hơn */
+  background-color: #dc2626;
 }
-/* ======================== */
 
 /* BỐ CỤC 2 CỘT MỚI */
 .game-layout {
@@ -313,15 +385,15 @@ function sendMessage(text) {
 }
 
 .main-column {
-  flex: 3;
+  flex: 3; /* Cột game chiếm 3 phần */
   min-width: 0;
 }
 
 .side-column {
-  flex: 1;
+  flex: 1; /* Cột chat chiếm 1 phần */
   min-width: 300px;
   position: sticky;
-  top: 90px;
+  top: 90px; /* 70px (navbar) + 20px (padding) */
 }
 /* =================== */
 
@@ -332,6 +404,7 @@ function sendMessage(text) {
   margin-top: 0;
   width: 100%;
 }
+
 .loading-board {
   padding: 40px;
   text-align: center;
@@ -343,5 +416,34 @@ function sendMessage(text) {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* === STYLE MỚI CHO TIMER & RPS RESULT === */
+.timer-display {
+  font-size: 1.25rem;
+  font-weight: bold;
+  color: #333;
+  background-color: #fffbeB;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 10px 16px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+.timer-display span {
+  color: #d97706;
+  font-size: 1.5rem;
+}
+
+.rps-result-message {
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: #155724;
+  background-color: #d4edda;
+  border: 1px solid #c3e6cb;
+  border-radius: 8px;
+  padding: 10px 16px;
+  margin-bottom: 20px;
+  text-align: center;
 }
 </style>

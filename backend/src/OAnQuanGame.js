@@ -398,4 +398,15 @@ export class OAnQuanGame {
 
     s.gameMessage += ` | Điểm cuối: P1 = ${finalScoreP1}, P2 = ${finalScoreP2}.`;
   }
+  getValidMoveIndices(player) {
+    const playerSquares = this.getPlayerCivilianSquares(player);
+    const validMoves = [];
+
+    for (const index of playerSquares) {
+      if (this.isValidMove(index, player)) {
+        validMoves.push(index);
+      }
+    }
+    return validMoves;
+  }
 }
