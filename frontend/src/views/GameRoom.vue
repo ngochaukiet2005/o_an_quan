@@ -148,7 +148,9 @@ function handleStateUpdate(state) {
     
     if (p1 && p2) {
       let winnerName = winnerId === p1.id ? p1.name : p2.name;
-      rpsResult.value = `${p1.name} chọn ${p1Choice}, ${p2.name} chọn ${p2Choice}. ${winnerName} đi trước!`;
+      // SỬA LỖI BÚA/KÉO
+      const choiceMap = { rock: "Búa", paper: "Bao", scissors: "Kéo" };
+      rpsResult.value = `${p1.name} chọn ${choiceMap[p1Choice] || p1Choice}, ${p2.name} chọn ${choiceMap[p2Choice] || p2Choice}. ${winnerName} đi trước!`;
 
       // Tự động xóa tin nhắn sau 5 giây
       setTimeout(() => {
@@ -234,6 +236,14 @@ function setupSocketListeners() {
   socketService.getSocket().on("room:player-joined", onPlayerJoined);
   socketService.getSocket().on("error", onError);
   socketService.getSocket().on("kicked_to_menu", onKicked);
+  
+  // Sửa lỗi "Chơi ngay": Lắng nghe 'room:joined' ở đây
+  // để lấy danh sách người chơi ban đầu
+  socketService.getSocket().on("room:joined", (data) => {
+    if (data.players) {
+      players.value = data.players.map(p => ({...p, score: 0}));
+    }
+  });
 }
 
 /* ===============================
@@ -416,9 +426,8 @@ function sendMessage(text) {
   justify-content: center;
 }
 
-/* === STYLE MỚI CHO TIMER & RPS RESULT === */
-/* Đồng hồ đếm ngược chung đã bị XÓA */
-
+/* === STYLE MỚI CHO RPS RESULT === */
+/* Xóa timer-display khỏi đây */
 .rps-result-message {
   font-size: 1.1rem;
   font-weight: 500;
