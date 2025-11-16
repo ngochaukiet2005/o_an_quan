@@ -79,7 +79,7 @@ import PlayerInfo from "../components/PlayerInfo.vue";
 import GameBoard from "../components/GameBoard.vue";
 import DirectionModal from "../components/DirectionModal.vue";
 import NotificationModal from "../components/NotificationModal.vue";
-import RpsModal from "../components/RpsModal.vue"; 
+import RpsModal from "../components/RpsModal.vue"; // <-- IMPORT MODAL MỚI
 
 /* ===============================
             STATE
@@ -150,7 +150,11 @@ function handleStateUpdate(state) {
       let winnerName = winnerId === p1.id ? p1.name : p2.name;
       // SỬA LỖI BÚA/KÉO
       const choiceMap = { rock: "Búa", paper: "Bao", scissors: "Kéo" };
-      rpsResult.value = `${p1.name} chọn ${choiceMap[p1Choice] || p1Choice}, ${p2.name} chọn ${choiceMap[p2Choice] || p2Choice}. ${winnerName} đi trước!`;
+      rpsResult.value = `${p1.name} chọn ${
+        choiceMap[p1Choice] || p1Choice
+      }, ${p2.name} chọn ${
+        choiceMap[p2Choice] || p2Choice
+      }. ${winnerName} đi trước!`;
 
       // Tự động xóa tin nhắn sau 5 giây
       setTimeout(() => {
@@ -238,7 +242,6 @@ function setupSocketListeners() {
   socketService.getSocket().on("kicked_to_menu", onKicked);
   
   // Sửa lỗi "Chơi ngay": Lắng nghe 'room:joined' ở đây
-  // để lấy danh sách người chơi ban đầu
   socketService.getSocket().on("room:joined", (data) => {
     if (data.players) {
       players.value = data.players.map(p => ({...p, score: 0}));
@@ -253,7 +256,7 @@ function setupSocketListeners() {
 onMounted(() => {
   resetState();
   setupSocketListeners();
-  socketService.requestGameState();
+  socketService.requestGameState(roomId.value);
 });
 
 onBeforeUnmount(() => {
@@ -265,7 +268,7 @@ watch(roomId, (newRoomId, oldRoomId) => {
   if (newRoomId && newRoomId !== oldRoomId) {
     resetState();
     setupSocketListeners();
-    socketService.requestGameState();
+    socketService.requestGameState(newRoomId);
   }
 });
 
@@ -284,8 +287,7 @@ function onLeaveRoomClick() {
 
 // (HÀM MỚI) Gửi lựa chọn Oẳn tù tì
 function handleRpsChoice(choice) {
-  socketService.submitRps(choice);
-  // UI "Đang chờ" được xử lý bên trong RpsModal.vue
+  socketService.submitRps(roomId.value, choice);
 }
 
 function handleMove(index) {
@@ -302,8 +304,8 @@ function onDirectionChosen(direction) {
   if (selectedCellIndex.value === null || !direction) {
     return;
   }
-  // Timer sẽ được server xóa
-  socketService.makeMove({
+  
+  socketService.makeMove(roomId.value, {
     cellIndex: selectedCellIndex.value,
     direction: direction,
   });
@@ -401,7 +403,7 @@ function sendMessage(text) {
   flex: 1; /* Cột chat chiếm 1 phần */
   min-width: 300px;
   position: sticky;
-  top: 90px; /* 70px (navbar) + 20px (padding) */
+  top: 90px; 
 }
 /* =================== */
 
@@ -427,7 +429,7 @@ function sendMessage(text) {
 }
 
 /* === STYLE MỚI CHO RPS RESULT === */
-/* Xóa timer-display khỏi đây */
+/* Đã xóa .timer-display */
 .rps-result-message {
   font-size: 1.1rem;
   font-weight: 500;

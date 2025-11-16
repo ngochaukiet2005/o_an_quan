@@ -5,7 +5,7 @@ import { ref } from "vue";
 const SOCKET_URL = "http://localhost:3000";
 
 let socket = null;
-const socketId = ref(null); 
+const socketId = ref(null);
 
 function connect() {
   if (!socket) {
@@ -15,12 +15,12 @@ function connect() {
 
     socket.on("connect", () => {
       console.log("🔌 Connected:", socket.id);
-      socketId.value = socket.id; 
+      socketId.value = socket.id;
     });
 
     socket.on("disconnect", () => {
       console.log("❌ Disconnected");
-      socketId.value = null; 
+      socketId.value = null;
     });
   }
 
@@ -32,7 +32,7 @@ function getSocket() {
 }
 
 function getSocketIdReactive() {
-  connect(); 
+  connect();
   return socketId;
 }
 
@@ -52,27 +52,27 @@ function leaveRoom() {
   getSocket().emit("leave_room");
 }
 
-function requestGameState() {
-  getSocket().emit("game:request_state");
+// === CÁC HÀM ĐÃ SỬA: Thêm roomId ===
+function requestGameState(roomId) {
+  getSocket().emit("game:request_state", roomId); // Gửi roomId
 }
 
-function makeMove(payload) {
-  getSocket().emit("make_move", payload);
+function makeMove(roomId, payload) {
+  getSocket().emit("make_move", { roomId, ...payload }); // Gửi roomId và payload
 }
+
+function submitRps(roomId, choice) {
+  getSocket().emit("game:submit_rps", { roomId, choice }); // Gửi roomId và choice
+}
+// ==================================
 
 function sendMessage(roomId, playerName, text) {
   getSocket().emit("chat:send", {
-    roomId,
+    roomId, // roomId đã có sẵn
     message: text,
     senderName: playerName,
   });
 }
-
-// === HÀM MỚI ===
-function submitRps(choice) {
-  getSocket().emit("game:submit_rps", choice);
-}
-// ==============
 
 /* ================= ON ================= */
 
@@ -112,6 +112,7 @@ function offAll() {
   socket.off("room:player-joined");
   socket.off("error");
   socket.off("kicked_to_menu");
+  socket.off("room:joined"); // <-- Quan trọng: Thêm dọn dẹp cho room:joined
 
   // === THÊM DỌN DẸP MỚI ===
   socket.off("game:start_rps");

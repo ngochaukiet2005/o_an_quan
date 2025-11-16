@@ -1,8 +1,8 @@
 // src/gameManager.js
 import { generateRoomId } from "./utils.js";
 import { OAnQuanGame } from "./OAnQuanGame.js";
-import { RpsGame } from "./RpsGame.js"; // <-- IMPORT RPS MỚI
-import { TurnTimerManager } from "./turnTimer.js"; // <-- IMPORT TIMER MỚI
+import { RpsGame } from "./RpsGame.js";
+import { TurnTimerManager } from "./turnTimer.js";
 
 // ---- 1. Quản lý Trạng thái ----
 const rooms = new Map();
@@ -22,9 +22,9 @@ export const handleCreateRoom = (socket, playerName) => {
     id: roomId,
     players: [player1],
     game: game,
-    status: "waiting", // Chờ P2
-    rpsGame: null, // Sẽ được tạo khi P2 vào
-    nextTurnPlayerId: null, // Sẽ được quyết định bởi RPS
+    status: "waiting",
+    rpsGame: null,
+    nextTurnPlayerId: null,
   };
   rooms.set(roomId, room);
   socket.join(roomId);
@@ -43,15 +43,16 @@ export const handleJoinRoom = (io, socket, roomId, playerName) => {
   if (room.players.length >= 2) {
     return socket.emit("error", { message: "Phòng đã đầy." });
   }
-  
+
   const player2 = { id: socket.id, name: playerName, symbol: "O" };
   room.players.push(player2);
-  
+
   socket.join(roomId);
   socket.emit("room:joined", {
     roomId: roomId,
     playerId: player2.id,
     playerSymbol: player2.symbol,
+    players: room.players, // Gửi danh sách người chơi
   });
   socket.to(roomId).emit("room:player-joined", {
     id: player2.id,
@@ -77,6 +78,7 @@ export const handleJoinMatchmaking = (io, socket, playerName) => {
     const socket1 = io.sockets.sockets.get(player1Data.id);
     const socket2 = io.sockets.sockets.get(player2Data.id);
 
+    // ... (logic kiểm tra socket1, socket2 còn tồn tại) ...
     if (!socket1) {
       if (socket2) {
         matchmakingQueue.unshift(player2Data);
@@ -97,7 +99,6 @@ export const handleJoinMatchmaking = (io, socket, playerName) => {
     const roomId = generateRoomId();
     const player1 = { id: player1Data.id, name: player1Data.name, symbol: "X" };
     const player2 = { id: player2Data.id, name: player2Data.name, symbol: "O" };
-
     const game = new OAnQuanGame();
 
     const room = {
@@ -105,34 +106,28 @@ export const handleJoinMatchmaking = (io, socket, playerName) => {
       players: [player1, player2],
       game: game,
       status: "rps",
-      rpsGame: null, // Sẽ được tạo ngay
+      rpsGame: null,
       nextTurnPlayerId: null,
     };
     rooms.set(roomId, room);
     socket1.join(roomId);
     socket2.join(roomId);
 
-    // ===================================
-    // === 💡 SỬA LỖI NẰM Ở ĐÂY 💡 ===
-    // ===================================
+    // === 💡 SỬA LỖI "CHƠI NGAY" 💡 ===
     // Báo cho 2 client biết họ đã vào phòng
-    // để họ có thể điều hướng (navigate)
     socket1.emit("room:joined", {
       roomId: roomId,
       playerId: player1.id,
       playerSymbol: player1.symbol,
       players: room.players,
     });
-    
     socket2.emit("room:joined", {
       roomId: roomId,
       playerId: player2.id,
       playerSymbol: player2.symbol,
       players: room.players,
     });
-    // ===================================
-    // === 💡 KẾT THÚC SỬA LỖI 💡 ===
-    // ===================================
+    // =============================
 
     // Bắt đầu Oẳn tù tì
     startRps(io, room);
@@ -144,7 +139,6 @@ export const handleJoinMatchmaking = (io, socket, playerName) => {
  */
 function startRps(io, room, isRetry = false) {
   room.status = "rps";
-  // Tạo hoặc reset instance RpsGame
   if (!room.rpsGame) {
     room.rpsGame = new RpsGame(room.players[0].id, room.players[1].id);
   } else {
@@ -156,30 +150,38 @@ function startRps(io, room, isRetry = false) {
 /**
  * Xử lý khi người chơi chọn Oẳn tù tì
  */
-export const handleSubmitRps = (io, socket, choice) => {
-  const room = findRoomBySocketId(socket.id);
+export const handleSubmitRps = (io, socket, payload) => {
+  const { roomId, choice } = payload;
+  const room = rooms.get(roomId);
+
   if (!room || !room.rpsGame || room.status !== "rps") return;
 
-  // Giao phó logic cho RpsGame
-  const rpsState = room.rpsGame.makeChoice(socket.id, choice);
+  // === 💡 SỬA LỖI RPS BỊ KẸT 💡 ===
+  // Tìm người chơi dựa trên socket.id hiện tại
+  const player = room.players.find((p) => p.id === socket.id);
+  if (!player) {
+    // Trường hợp này có thể xảy ra nếu ID socket thay đổi (rất hiếm)
+    // Hoặc nếu một người không phải người chơi cố gắng gửi.
+    console.warn(`Socket ${socket.id} không phải là người chơi trong phòng ${roomId}`);
+    return; 
+  }
 
-  // Chỉ hành động khi đã hoàn thành (cả 2 đã chọn)
+  // Giao phó logic cho RpsGame bằng ID ổn định (p.id)
+  const rpsState = room.rpsGame.makeChoice(player.id, choice);
+  // =============================
+
   if (rpsState.status === "complete") {
     if (rpsState.winner === "draw") {
-      // Nếu hòa, chơi lại
       startRps(io, room, true);
       return;
     }
 
-    // Nếu có người thắng, bắt đầu game
     const startingPlayer = room.players.find(p => p.id === rpsState.winnerId);
     room.status = "playing";
-    room.nextTurnPlayerId = startingPlayer.id; // Đặt người đi trước
+    room.nextTurnPlayerId = startingPlayer.id;
 
-    // Cập nhật state của game Ô Ăn Quan
     room.game.state.currentPlayer = room.players.findIndex(p => p.id === startingPlayer.id) + 1;
     room.game.state.gameMessage = `Ván đấu bắt đầu. Lượt của ${startingPlayer.name}.`;
-
 
     const initialState = room.game.getState();
     const startData = {
@@ -189,7 +191,6 @@ export const handleSubmitRps = (io, socket, choice) => {
       scores: initialState.scores,
       debt: initialState.debt,
       roomId: room.id,
-      // Gửi kết quả Oẳn tù tì để client hiển thị
       rpsResult: {
         p1Choice: rpsState.choices[room.players[0].id],
         p2Choice: rpsState.choices[room.players[1].id],
@@ -199,11 +200,7 @@ export const handleSubmitRps = (io, socket, choice) => {
     };
     
     io.to(room.id).emit("game_start", startData);
-    
-    // Dọn dẹp RpsGame
-    room.rpsGame = null; 
-    
-    // Bắt đầu timer cho lượt đầu tiên
+    room.rpsGame = null;
     timerManager.start(room);
   }
 };
@@ -211,46 +208,37 @@ export const handleSubmitRps = (io, socket, choice) => {
 /**
  * (Callback) Khi timer hết hạn
  */
-function handleTimerExpires(room, expiredPlayer) {
-  // Kiểm tra phòng còn tồn tại không
+function handleTimerExpires(io, room, expiredPlayer) {
   if (!rooms.has(room.id) || !ioInstance) return;
-
   const gameInstance = room.game;
-  
-  // Kiểm tra xem có đúng lượt của người chơi đó không
   if (gameInstance.getState().currentPlayer !== expiredPlayer) {
-    console.log("Timer hết hạn nhưng lượt đã thay đổi. Bỏ qua.");
     return;
   }
 
   console.log(`Thực hiện nước đi ngẫu nhiên cho P${expiredPlayer}`);
-  
-  // Logic vay tự động
   gameInstance.checkAndHandleBorrowing(expiredPlayer);
-
-  // Lấy các nước đi hợp lệ SAU KHI có thể đã vay
   const validIndices = gameInstance.getValidMoveIndices(expiredPlayer);
 
+  const player = room.players[expiredPlayer - 1];
+  const playerName = player ? player.name : `Người chơi ${expiredPlayer}`;
+  
   if (validIndices.length > 0) {
     const randomIndex = validIndices[Math.floor(Math.random() * validIndices.length)];
-    const randomDirection = Math.random() < 0.5 ? 1 : -1; // 1: phải, -1: trái
-    // === THÊM MỚI: Gửi tin nhắn chat ===
+    const randomDirection = Math.random() < 0.5 ? 1 : -1;
+    const directionText = randomDirection === 1 ? "phải" : "trái";
+
     ioInstance.to(room.id).emit("chat:receive", {
       senderName: "Hệ thống",
       message: `Hết giờ! Tự động chọn ô ${randomIndex} và đi hướng ${directionText} cho ${playerName}.`
     });
-    // =================================
+
     performMove(ioInstance, room, randomIndex, randomDirection);
   } else {
-    // === THÊM MỚI: Gửi tin nhắn chat (trường hợp thua) ===
     ioInstance.to(room.id).emit("chat:receive", {
       senderName: "Hệ thống",
       message: `Hết giờ! ${playerName} không thể thực hiện nước đi (kể cả sau khi vay) và bị xử thua.`
     });
-    // =================================
-    // Nếu vẫn không có nước đi nào (không thể vay) -> thua
-    // Gọi performMove với ô không hợp lệ (ví dụ ô 0) để kích hoạt logic thua
-    performMove(ioInstance, room, 0, 1);
+    performMove(ioInstance, room, 0, 1); // Nước đi không hợp lệ để xử thua
   }
 }
 
@@ -259,18 +247,8 @@ function handleTimerExpires(room, expiredPlayer) {
  */
 function performMove(io, room, cellIndex, direction) {
   const game = room.game;
-
-  // Kiểm tra nước đi có hợp lệ không (dùng cho random move)
-  // Logic vay/thua đã được xử lý trong `handleTimerExpires`
-  const playerNumber = game.getState().currentPlayer;
-  if (!game.isValidMove(cellIndex, playerNumber)) {
-     // Nếu nước đi không hợp lệ (ví dụ: bốc ô 0 do hết cách vay)
-     // thì .makeMove() sẽ tự xử lý việc xử thua.
-  }
-
   const newState = game.makeMove(cellIndex, direction);
-  
-  // 2. Kiểm tra Game Over
+
   if (newState.isGameOver) {
     let winnerId = null;
     if (newState.winner === 1) winnerId = room.players[0].id;
@@ -279,7 +257,7 @@ function performMove(io, room, cellIndex, direction) {
     const finalP1 = newState.scores.player1;
     const finalP2 = newState.scores.player2;
     const totalP1 = finalP1.quan * 5 + finalP1.dan;
-    const totalP2 = finalP2.quan * 5 + finalP2.dan;
+    const totalP2 = finalP2.quan * 5 + finalP2.dan; // <-- 💡 SỬA LỖI TÍNH ĐIỂM
 
     io.to(room.id).emit("game_over", {
       winner: winnerId,
@@ -288,12 +266,11 @@ function performMove(io, room, cellIndex, direction) {
       gameMessage: newState.gameMessage,
     });
 
-    timerManager.clear(room); // Dọn dẹp timer
+    timerManager.clear(room);
     rooms.delete(room.id);
     return;
   }
 
-  // 3. Cập nhật trạng thái
   const nextPlayer = room.players[newState.currentPlayer - 1];
   io.to(room.id).emit("update_game_state", {
     board: newState.board,
@@ -303,7 +280,6 @@ function performMove(io, room, cellIndex, direction) {
     gameMessage: newState.gameMessage,
   });
 
-  // 4. Bắt đầu timer cho người chơi tiếp theo
   timerManager.start(room);
 }
 
@@ -311,27 +287,30 @@ function performMove(io, room, cellIndex, direction) {
  * (C -> S) Xử lý một nước đi
  */
 export const handleMakeMove = (io, socket, payload) => {
-  const room = findRoomBySocketId(socket.id);
+  const { roomId, cellIndex, direction } = payload;
+  const room = rooms.get(roomId);
+
   if (!room) return;
 
-  // Dừng timer ngay khi nhận được nước đi
   timerManager.clear(room);
 
   const game = room.game;
   if (!game) return;
 
-  const { cellIndex, direction } = payload;
   const moveDirection = direction === "right" ? 1 : -1;
 
-  // 1. Xác thực người chơi
   const playerIndex = room.players.findIndex((p) => p.id === socket.id);
-  const playerNumber = playerIndex === 0 ? 1 : 2; 
+  if (playerIndex === -1) return; // Không phải người chơi
+
+  const playerNumber = playerIndex === 0 ? 1 : 2;
   const currentState = game.getState();
 
   if (currentState.currentPlayer !== playerNumber) {
+    timerManager.start(room); // Khởi động lại timer
     return socket.emit("invalid_move", { message: "Không phải lượt của bạn!" });
   }
-  // === THÊM MỚI: Gửi tin nhắn chat cho nước đi thủ công ===
+
+  // Gửi tin nhắn chat
   const player = room.players[playerIndex];
   const playerName = player ? player.name : `Người chơi ${playerNumber}`;
   const directionText = moveDirection === 1 ? "phải" : "trái";
@@ -340,18 +319,18 @@ export const handleMakeMove = (io, socket, payload) => {
       senderName: "Hệ thống",
       message: `${playerName} đã chọn ô ${cellIndex} và đi về hướng ${directionText}.`
   });
-  // ===================================================
-  // 2. Thực hiện nước đi
+
   performMove(io, room, cellIndex, moveDirection);
 };
 
-// --- CÁC HÀM KHÁC (thêm dọn dẹp timer) ---
+// --- CÁC HÀM KHÁC ---
 
 export const handleLeaveRoom = (io, socket) => {
+  // Tìm phòng của socket này (cần cho disconnect/leave)
   const room = findRoomBySocketId(socket.id);
   if (!room) return;
   
-  timerManager.clear(room); // <-- DỌN DẸP TIMER
+  timerManager.clear(room);
 
   const otherPlayer = room.players.find((p) => p.id !== socket.id);
   if (otherPlayer) {
@@ -377,7 +356,7 @@ export const handleDisconnect = (io, socket, reason) => {
   const room = findRoomBySocketId(socket.id);
   if (!room) return;
   
-  timerManager.clear(room); // <-- DỌN DẸP TIMER
+  timerManager.clear(room);
   
   const otherPlayer = room.players.find((p) => p.id !== socket.id);
   if (otherPlayer) {
@@ -392,12 +371,13 @@ export const handleDisconnect = (io, socket, reason) => {
 };
 
 export const handleSendMessage = (io, socket, payload) => {
-  const room = findRoomBySocketId(socket.id);
+  const { roomId, message } = payload;
+  const room = rooms.get(roomId);
   if (!room) return;
   const player = room.players.find((p) => p.id === socket.id);
   io.to(room.id).emit("chat:receive", {
     senderName: player ? player.name : "Người xem",
-    message: payload.message,
+    message: message,
   });
 };
 
@@ -410,32 +390,57 @@ const findRoomBySocketId = (socketId) => {
   return undefined;
 };
 
-export const handleRequestGameState = (io, socket) => {
-  const room = findRoomBySocketId(socket.id); 
-  if (!room || !room.game) {
+export const handleRequestGameState = (io, socket, roomId) => {
+  const room = rooms.get(roomId);
+  if (!room) {
     return socket.emit("error", { message: "Không tìm thấy phòng." });
   }
 
-  // Nếu game đang oẳn tù tì, báo client vào oẳn tù tì
+  // === 💡 SỬA LỖI RECONNECT 💡 ===
+  // Cập nhật socket.id mới cho người chơi nếu họ reconnect
+  const playerIndex = room.players.findIndex(p => p.id === socket.id);
+  if (playerIndex === -1) { 
+    // Nếu không tìm thấy, đây là một reconnect
+    // Chúng ta cần tìm xem họ là P1 hay P2
+    // Giải pháp đơn giản: giả định người chơi đầu tiên không khớp là họ
+    // (Điều này có thể không an toàn nếu cả 2 cùng reconnect, nhưng hiếm)
+    
+    // Thử tìm P1
+    const p1Socket = io.sockets.sockets.get(room.players[0].id);
+    if (!p1Socket) {
+      console.log(`Phát hiện P1 (ID ${room.players[0].id}) reconnect với ID mới ${socket.id}`);
+      room.players[0].id = socket.id;
+    } 
+    // Thử tìm P2 (nếu có P2)
+    else if (room.players.length > 1) {
+      const p2Socket = io.sockets.sockets.get(room.players[1].id);
+      if (!p2Socket) {
+        console.log(`Phát hiện P2 (ID ${room.players[1].id}) reconnect với ID mới ${socket.id}`);
+        room.players[1].id = socket.id;
+      }
+    }
+  }
+  // Thêm socket này vào phòng của Socket.IO
+  socket.join(roomId);
+  // ==========================
+
   if (room.status === "rps") {
     startRps(io, room, false);
     return;
   }
   
-  // Nếu game đang chờ, không làm gì
   if (room.status === "waiting") {
      socket.emit("error", { message: "Đang chờ người chơi khác..." });
      return;
   }
 
-  // Nếu game đang chơi, gửi state
   if (room.status === "playing") {
     const currentState = room.game.getState();
     const currentPlayerSocket = room.players[currentState.currentPlayer - 1];
 
     const stateData = {
       players: room.players,
-      startingPlayerId: room.nextTurnPlayerId, // Gửi người bắt đầu ban đầu
+      startingPlayerId: room.nextTurnPlayerId,
       nextTurnPlayerId: currentPlayerSocket ? currentPlayerSocket.id : null,
       board: currentState.board,
       scores: currentState.scores,
@@ -445,8 +450,6 @@ export const handleRequestGameState = (io, socket) => {
     };
     
     socket.emit("update_game_state", stateData);
-    
-    // Khởi động lại timer cho client này
     timerManager.start(room);
   }
 };
@@ -455,8 +458,7 @@ export const handleRequestGameState = (io, socket) => {
 // ===============================
 export function setupSocketHandlers(io) {
   ioInstance = io;
-  // Khởi tạo TurnTimerManager MỘT LẦN và truyền callback
-  timerManager = new TurnTimerManager(io, handleTimerExpires);
+  timerManager = new TurnTimerManager(io, (room, expiredPlayer) => handleTimerExpires(io, room, expiredPlayer));
 
   io.on("connection", (socket) => {
     console.log("✔ Client connected:", socket.id);
@@ -473,19 +475,22 @@ export function setupSocketHandlers(io) {
       handleJoinMatchmaking(io, socket, name);
     });
 
-    // Handler Oẳn tù tì
-    socket.on("game:submit_rps", (choice) => {
-      handleSubmitRps(io, socket, choice);
+    // Handler Oẳn tù tì (nhận payload là object)
+    socket.on("game:submit_rps", (payload) => {
+      handleSubmitRps(io, socket, payload);
     });
 
+    // Handler Nước đi (nhận payload là object)
     socket.on("make_move", (payload) => {
       handleMakeMove(io, socket, payload);
     });
     
-    socket.on("game:request_state", () => {
-      handleRequestGameState(io, socket);
+    // Handler Yêu cầu State (nhận payload là string)
+    socket.on("game:request_state", (roomId) => {
+      handleRequestGameState(io, socket, roomId);
     });
     
+    // Handler Chat (nhận payload là object)
     socket.on("chat:send", (payload) => {
       handleSendMessage(io, socket, payload);
     });

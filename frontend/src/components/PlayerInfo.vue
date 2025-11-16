@@ -8,12 +8,17 @@
       <div class="player-details">
         <span class="player-name">
           {{ player.name }}
-          <span v-if="player.id === currentTurnId" class="turn-indicator">(Đang đi...)</span>
+          <span v-if="player.id === currentTurnId" class="turn-indicator"
+            >(Đang đi...)</span
+          >
         </span>
         <span class="player-score">Điểm: {{ player.score || 0 }}</span>
       </div>
-      
-      <div v-if="player.id === currentTurnId && timerValue !== null" class="timer">
+
+      <div
+        v-if="player.id === currentTurnId && timerValue !== null"
+        class="timer"
+      >
         {{ timerValue }}s
       </div>
     </div>
@@ -45,7 +50,7 @@ defineProps({
   padding: 16px;
   border-radius: 12px;
   transition: all 0.3s ease;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .player-card.is-turn {
@@ -84,7 +89,7 @@ defineProps({
   font-size: 1.75rem;
   font-weight: 700;
   color: #d97706; /* Màu cam */
-  background: #fffbeB; /* Màu vàng nhạt */
+  background: #fffbeb; /* Màu vàng nhạt */
   border-radius: 50%; /* Hiển thị hình tròn */
   width: 50px;
   height: 50px;
