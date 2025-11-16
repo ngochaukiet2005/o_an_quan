@@ -234,8 +234,20 @@ function handleTimerExpires(room, expiredPlayer) {
   if (validIndices.length > 0) {
     const randomIndex = validIndices[Math.floor(Math.random() * validIndices.length)];
     const randomDirection = Math.random() < 0.5 ? 1 : -1; // 1: phải, -1: trái
+    // === THÊM MỚI: Gửi tin nhắn chat ===
+    ioInstance.to(room.id).emit("chat:receive", {
+      senderName: "Hệ thống",
+      message: `Hết giờ! Tự động chọn ô ${randomIndex} và đi hướng ${directionText} cho ${playerName}.`
+    });
+    // =================================
     performMove(ioInstance, room, randomIndex, randomDirection);
   } else {
+    // === THÊM MỚI: Gửi tin nhắn chat (trường hợp thua) ===
+    ioInstance.to(room.id).emit("chat:receive", {
+      senderName: "Hệ thống",
+      message: `Hết giờ! ${playerName} không thể thực hiện nước đi (kể cả sau khi vay) và bị xử thua.`
+    });
+    // =================================
     // Nếu vẫn không có nước đi nào (không thể vay) -> thua
     // Gọi performMove với ô không hợp lệ (ví dụ ô 0) để kích hoạt logic thua
     performMove(ioInstance, room, 0, 1);
@@ -319,7 +331,16 @@ export const handleMakeMove = (io, socket, payload) => {
   if (currentState.currentPlayer !== playerNumber) {
     return socket.emit("invalid_move", { message: "Không phải lượt của bạn!" });
   }
-
+  // === THÊM MỚI: Gửi tin nhắn chat cho nước đi thủ công ===
+  const player = room.players[playerIndex];
+  const playerName = player ? player.name : `Người chơi ${playerNumber}`;
+  const directionText = moveDirection === 1 ? "phải" : "trái";
+  
+  io.to(room.id).emit("chat:receive", {
+      senderName: "Hệ thống",
+      message: `${playerName} đã chọn ô ${cellIndex} và đi về hướng ${directionText}.`
+  });
+  // ===================================================
   // 2. Thực hiện nước đi
   performMove(io, room, cellIndex, moveDirection);
 };
