@@ -145,6 +145,14 @@ function resetState() {
   selectedCellIndex.value = null;
   showGameOverModal.value = false;
 }
+// === THÊM HÀM MỚI NÀY ===
+// Xử lý khi bị máy chủ kick (do đối thủ rời/disconnect)
+const onKicked = (data) => {
+  // data.message sẽ là "Đối thủ đã rời phòng. Bạn thắng!"
+  alert(data.message);
+  router.push("/play");
+};
+// =========================
 
 // Hàm cài đặt listener
 function setupSocketListeners() {
@@ -155,6 +163,7 @@ function setupSocketListeners() {
   socketService.getSocket().on("chat:receive", onChatReceive);
   socketService.getSocket().on("room:player-joined", onPlayerJoined);
   socketService.getSocket().on("error", onError);
+  socketService.getSocket().on("kicked_to_menu", onKicked);
 }
 
 /* ===============================
@@ -189,11 +198,19 @@ watch(roomId, (newRoomId, oldRoomId) => {
 
 // === HÀM MỚI CHO NÚT THOÁT PHÒNG ===
 function onLeaveRoomClick() {
-  console.log("Người dùng nhấp vào Thoát phòng. Điều hướng về /play...");
-  // Chúng ta chỉ cần điều hướng, onBeforeUnmount sẽ lo việc dọn dẹp
-  router.push("/play");
+  // Sử dụng confirm() của trình duyệt để xác nhận
+  const confirmed = confirm(
+    "Bạn chắc chắn muốn rời phòng? Bạn sẽ bị xử thua."
+  );
+
+  if (confirmed) {
+    console.log("Người dùng xác nhận rời phòng. Điều hướng về /play...");
+    // Chúng ta chỉ cần điều hướng, onBeforeUnmount sẽ lo việc dọn dẹp
+    router.push("/play");
+  }
+  // Nếu không (confirmed = false), không làm gì cả
 }
-// ===================================
+// =====================
 
 function handleMove(index) {
   if (currentTurnId.value !== playerId.value) {
