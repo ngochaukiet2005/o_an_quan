@@ -52,7 +52,7 @@ const onGameStart = (data) => {
   localStorage.setItem('playerName', playerName.value);
 
   // Chuyển sang phòng game
-  router.push('/gameroom');
+  router.push('/game-room');
 };
 
 const onQueueUpdate = (data) => {
