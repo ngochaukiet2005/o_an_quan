@@ -82,7 +82,7 @@ const activePit = computed(() => store.activePit);
 const isMyTurn = computed(() => store.nextTurnPlayerId === store.myPlayerId);
 const myPlayerNumber = computed(() => store.myPlayerNumber);
 
-// 💡 XOAY BÀN CỜ (QUAN TRỌNG)
+// XOAY BÀN CỜ (QUAN TRỌNG)
 // Nếu tôi là P1, tôi xem bình thường.
 // Nếu tôi là P2, bàn cờ sẽ xoay 180 độ.
 const playerViewClass = computed(() => {
@@ -153,15 +153,18 @@ const onPitClick = (index) => {
 }
 
 /* --- Bố cục cho P1 (Mặc định) --- */
-.p1-view .top-row { flex-direction: row-reverse; } /* Ô 11 -> 7 */
+/* SỬA LỖI: Đổi 'row-reverse' thành 'row' 
+  để hiển thị đúng thứ tự 11, 10, 9, 8, 7 
+*/
+.p1-view .top-row { flex-direction: row; } /* Ô 11 -> 7 */
 .p1-view .quan-row { flex-direction: row; }      /* Quan 0 (trái), Quan 6 (phải) */
 .p1-view .bottom-row { flex-direction: row; }    /* Ô 1 -> 5 */
 
-/* 💡 Bố cục cho P2 (Xoay 180 độ) --- */
+/* --- Bố cục cho P2 (Xoay 180 độ) --- */
 .p2-view { flex-direction: column-reverse; } /* Đảo hàng trên và dưới */
 .p2-view .top-row { flex-direction: row; } /* (Bây giờ là hàng dưới) Ô 1 -> 5 */
 .p2-view .quan-row { flex-direction: row-reverse; } /* Quan 6 (trái), Quan 0 (phải) */
-.p2-view .bottom-row { flex-direction: row-reverse; } /* (Bây giờ là hàng trên) Ô 11 -> 7 */
+.p2-view .bottom-row { flex-direction: row; } /* (Bây giờ là hàng trên) Ô 11 -> 7 */
 
 
 .pit {
