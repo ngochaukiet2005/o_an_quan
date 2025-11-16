@@ -129,14 +129,6 @@ onBeforeUnmount(() => {
         USER ACTIONS
 ================================= */
 
-// gửi nước đi
-function handleMove(index) {
-  socketService.makeMove({
-    roomId,
-    playerId: playerId.value,
-    startIndex: index,
-  });
-}
 
 // gửi chat
 function sendMessage(text) {
