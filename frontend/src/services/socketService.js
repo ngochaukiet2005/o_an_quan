@@ -33,11 +33,11 @@ function quickPlay(playerName) {
   getSocket().emit("room:quickplay", { name: playerName });
 }
 function createRoom(playerName) {
-  getSocket().emit("room:create", { playerName });
+  getSocket().emit("room:create", { name: playerName });
 }
 
 function joinRoom(roomId, playerName) {
-  getSocket().emit("room:join", { roomId, playerName });
+  getSocket().emit("room:join", { roomId, name: playerName });
 }
 
 /* ================= ON ================= */

@@ -63,7 +63,7 @@ const router = useRouter(); // Khởi tạo router
 const roomId = route.params.roomId;
 const playerName = route.query.playerName;
 
-const playerId = ref("");
+const playerId = ref(socketService.getSocket().id);
 const playerSymbol = ref("");
 const players = ref([]);
 const board = ref([]); // Bắt đầu là mảng rỗng
