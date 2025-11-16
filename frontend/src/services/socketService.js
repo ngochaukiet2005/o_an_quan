@@ -28,7 +28,10 @@ function getSocket() {
 }
 
 /* ================= EMIT ================= */
-
+function quickPlay(playerName) {
+  // Gửi { name: ... } thay vì { playerName: ... }
+  getSocket().emit("room:quickplay", { name: playerName });
+}
 function createRoom(playerName) {
   getSocket().emit("room:create", { playerName });
 }
@@ -58,6 +61,9 @@ function onPlayerJoined(cb) {
 function onError(cb) {
   // FIX: backend emit "error"
   getSocket().on("error", cb);
+}
+function onGameStart(cb) {
+  getSocket().on("game_start", cb);
 }
 function makeMove(payload) {
   // payload sẽ có dạng { roomId, playerId, startIndex }
@@ -91,6 +97,7 @@ export default {
   connect,
   createRoom,
   joinRoom,
+  quickPlay,
   makeMove,
   onRoomCreated,
   onRoomJoined,
@@ -99,6 +106,7 @@ export default {
   onUpdateGameState,
   onPlayerJoined,
   onError,
+  onGameStart,
   offAll,
   getSocket,
 };

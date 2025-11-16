@@ -4,6 +4,7 @@ import Home from "../views/Home.vue";
 import GameRoom from "../views/GameRoom.vue";
 import About from "../views/About.vue";
 import Guide from "../views/Guide.vue";
+import Play from "../views/Play.vue";
 
 const routes = [
   {
