@@ -112,6 +112,28 @@ export const handleJoinMatchmaking = (io, socket, playerName) => {
     socket1.join(roomId);
     socket2.join(roomId);
 
+    // ===================================
+    // === 💡 SỬA LỖI NẰM Ở ĐÂY 💡 ===
+    // ===================================
+    // Báo cho 2 client biết họ đã vào phòng
+    // để họ có thể điều hướng (navigate)
+    socket1.emit("room:joined", {
+      roomId: roomId,
+      playerId: player1.id,
+      playerSymbol: player1.symbol,
+      players: room.players,
+    });
+    
+    socket2.emit("room:joined", {
+      roomId: roomId,
+      playerId: player2.id,
+      playerSymbol: player2.symbol,
+      players: room.players,
+    });
+    // ===================================
+    // === 💡 KẾT THÚC SỬA LỖI 💡 ===
+    // ===================================
+
     // Bắt đầu Oẳn tù tì
     startRps(io, room);
   }
@@ -245,7 +267,7 @@ function performMove(io, room, cellIndex, direction) {
     const finalP1 = newState.scores.player1;
     const finalP2 = newState.scores.player2;
     const totalP1 = finalP1.quan * 5 + finalP1.dan;
-    const totalP2 = finalP1.quan * 5 + finalP2.dan; // <-- SỬA LỖI NHỎ: Đáng lẽ là finalP2
+    const totalP2 = finalP2.quan * 5 + finalP2.dan;
 
     io.to(room.id).emit("game_over", {
       winner: winnerId,

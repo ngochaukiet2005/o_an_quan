@@ -2,7 +2,7 @@
   <div class="play-page">
     <div class="form-container">
       <div class="card name-card">
-        <h3>Bước 1: Nhập tên của bạn</h3>
+        <h3>Nhập tên của bạn</h3>
         <label>
           Tên hiển thị:
           <input
@@ -15,21 +15,20 @@
       </div>
 
       <div class="card">
-        <h3>Bước 2: Chơi ngay</h3>
-        <p>Ghép cặp ngẫu nhiên với một người chơi khác trên server.</p>
+        <h3>Chơi ngay</h3>
+        <p>Ghép cặp ngẫu nhiên với một người chơi ngẫu nhiên</p>
         <button class="btn-create" @click="handleQuickPlay">Tìm trận</button>
       </div>
 
       <div class="card">
-        <h3>...hoặc Tạo phòng</h3>
+        <h3>Tạo phòng</h3>
         <p>Tạo phòng riêng và mời bạn bè qua mã phòng.</p>
         <button class="btn-create" @click="handleCreateRoom">Tạo phòng</button>
       </div>
 
       <div class="card">
-        <h3>...hoặc Vào phòng</h3>
+        <h3>Vào phòng</h3>
         <label>
-          Mã phòng:
           <input
             v-model="roomIdToJoin"
             type="text"
