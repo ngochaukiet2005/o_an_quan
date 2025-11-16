@@ -7,49 +7,59 @@
         @click="() => onPitClick(0)"
       >
         <div class="stone-summary-text">
-          <div>Ô 0</div>
-          <div class="count">{{ boardState[0]?.stones || 0 }}</div>
-          <div class="type">QUAN</div>
+          <div class="label">Ô 0 (Quan P2)</div>
+          <div class="counts">
+            <span class="quan-count">Q: {{ boardState[0]?.quan || 0 }}</span>
+            <span class="dan-count">D: {{ boardState[0]?.dan || 0 }}</span>
+          </div>
         </div>
       </div>
+
       <div
         v-for="i in 5"
         :key="i"
         class="pit square-pit"
-        :class="{ active: activePit === i }"
+        :class="{ active: activePit === i, 'clickable': isClickable(i) }"
         @click="() => onPitClick(i)"
       >
         <div class="stone-summary-text">
-          <div>Ô {{ i }}</div>
-          <div class="count">{{ boardState[i]?.stones || 0 }}</div>
-          <div class="type">DÂN</div>
+          <div class="label">Ô {{ i }} (P1)</div>
+          <div class="counts">
+            <span class="quan-count">Q: {{ boardState[i]?.quan || 0 }}</span>
+            <span class="dan-count">D: {{ boardState[i]?.dan || 0 }}</span>
+          </div>
         </div>
       </div>
     </div>
 
     <div class="row bottom-row">
-      <div
-        v-for="i in 5"
-        :key="11 - i + 1"
-        class="pit square-pit"
-        :class="{ active: activePit === 11 - i + 1 }"
-        @click="() => onPitClick(11 - i + 1)"
-      >
-        <div class="stone-summary-text">
-          <div>Ô {{ 11 - i + 1 }}</div>
-          <div class="count">{{ boardState[11 - i + 1]?.stones || 0 }}</div>
-          <div class="type">DÂN</div>
-        </div>
-      </div>
-      <div
+       <div
         class="pit quan-pit"
         :class="{ active: activePit === 6 }"
         @click="() => onPitClick(6)"
       >
         <div class="stone-summary-text">
-          <div>Ô 6</div>
-          <div class="count">{{ boardState[6]?.stones || 0 }}</div>
-          <div class="type">QUAN</div>
+          <div class="label">Ô 6 (Quan P1)</div>
+          <div class="counts">
+            <span class="quan-count">Q: {{ boardState[6]?.quan || 0 }}</span>
+            <span class="dan-count">D: {{ boardState[6]?.dan || 0 }}</span>
+          </div>
+        </div>
+      </div>
+      
+      <div
+        v-for="i in 5"
+        :key="11 - i + 1"
+        class="pit square-pit"
+        :class="{ active: activePit === 11 - i + 1, 'clickable': isClickable(11 - i + 1) }"
+        @click="() => onPitClick(11 - i + 1)"
+      >
+        <div class="stone-summary-text">
+          <div class="label">Ô {{ 11 - i + 1 }} (P2)</div>
+          <div class="counts">
+            <span class="quan-count">Q: {{ boardState[11 - i + 1]?.quan || 0 }}</span>
+            <span class="dan-count">D: {{ boardState[11 - i + 1]?.dan || 0 }}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -58,51 +68,48 @@
 
 <script setup>
 import { computed } from 'vue';
-// 💡 SỬA LỖI: Import store tùy chỉnh, không phải 'vuex'
 import { store } from '../store.js';
 
-// import Stone from './Stone.vue'; // <-- Đã xóa, không cần hiển thị đá nữa
-
-// 💡 SỬA LỖI: Truy cập state trực tiếp từ store đã import
-// Tên 'boardState' vẫn giữ nguyên, nhưng nó lấy dữ liệu từ 'store.board'
 const boardState = computed(() => store.board);
 const activePit = computed(() => store.activePit);
+const isMyTurn = computed(() => store.nextTurnPlayerId === store.myPlayerId);
 
-const emit = defineEmits(['pit-click']);
+// SỬA LỖI 2: Đổi tên emit thành 'cell-click'
+const emit = defineEmits(['cell-click']);
 
-const onPitClick = (index) => {
-  // Thêm kiểm tra 'boardState.value[index]' để tránh lỗi khi board chưa kịp tải
-  if (!boardState.value[index]) return;
-
-  // Chỉ emit nếu ô đó không phải ô quan rỗng
-  if (boardState.value[index].isQuan && boardState.value[index].stones === 0) {
-    console.log("Không thể chọn ô quan rỗng");
-    return;
+// Hàm kiểm tra xem ô có thể được nhấp hay không
+const isClickable = (index) => {
+  if (!isMyTurn.value || !boardState.value[index]) {
+    return false;
   }
-  // Chỉ emit nếu ô dân đó có đá
-  if (!boardState.value[index].isQuan && boardState.value[index].stones === 0) {
-    console.log("Không thể chọn ô dân rỗng");
-    return;
+  // Theo luật, chỉ được nhấp vào ô Dân (không phải 0 hoặc 6)
+  if (index === 0 || index === 6) {
+    return false;
   }
-  emit('pit-click', index);
+  // Và ô đó phải có Dân và không có Quan
+  return boardState.value[index].dan > 0 && boardState.value[index].quan === 0;
 };
 
-// Thêm một kiểm tra an toàn trong template
-// (Dùng 'boardState[i]?.stones || 0' để tránh lỗi nếu board rỗng)
+const onPitClick = (index) => {
+  // SỬA LỖI 3: Kiểm tra logic hợp lệ trước khi emit
+  if (isClickable(index)) {
+    emit('cell-click', index);
+  } else {
+    // (GameRoom.vue cũng sẽ hiển thị lỗi, nhưng đây là phản hồi tức thì)
+    console.log("Không thể chọn ô này.");
+  }
+};
 </script>
 
 <style scoped>
-/* GIỮ NGUYÊN CSS CŨ CHO BỐ CỤC BÀN CỜ 
-  VÀ THÊM CSS MỚI CHO HIỂN THỊ TEXT 
-*/
-
+/* GIỮ NGUYÊN CSS CŨ CHO BỐ CỤC BÀN CỜ */
 .game-board {
   display: flex;
   flex-direction: column;
   width: 900px;
   margin: 20px auto;
-  background-color: #f0e6d2; /* Màu bàn cờ gỗ sáng */
-  border: 5px solid #8d6e63; /* Viền gỗ đậm */
+  background-color: #f0e6d2;
+  border: 5px solid #8d6e63;
   border-radius: 20px;
   padding: 10px;
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
@@ -112,27 +119,33 @@ const onPitClick = (index) => {
   display: flex;
 }
 
-.bottom-row {
-  /* Hàng dưới đi từ phải sang trái (ô 7 đến 11) */
-  flex-direction: row-reverse;
+.top-row {
+  flex-direction: row-reverse; /* Để ô 0 (Quan P2) ở bên trái */
 }
 
 .pit {
-  border: 2px solid #a1887f; /* Viền ô */
+  border: 2px solid #a1887f;
   margin: 5px;
-  cursor: pointer;
+  cursor: not-allowed; /* Mặc định là không cho phép */
   position: relative;
-  background-color: #fffbf2; /* Màu trong ô */
-  
-  /* Căn giữa text */
-  display: flex; 
+  background-color: #fffbf2;
+  display: flex;
   justify-content: center;
   align-items: center;
   transition: all 0.2s ease;
+  min-height: 120px; /* Đảm bảo chiều cao tối thiểu */
+}
+
+/* CSS MỚI: Chỉ khi 'clickable' mới đổi con trỏ */
+.pit.clickable {
+  cursor: pointer;
+}
+.pit.clickable:hover {
+  background-color: #f7f3e8;
 }
 
 .pit.active {
-  border-color: #e53935; /* Màu đỏ khi active */
+  border-color: #e53935;
   box-shadow: 0 0 15px #e53935;
   transform: scale(1.05);
 }
@@ -148,11 +161,10 @@ const onPitClick = (index) => {
   height: 120px;
   margin: 5px 10px;
 }
-/* Làm cho ô quan có hình bán nguyệt */
 .top-row .quan-pit {
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
-  border-top-left-radius: 125px; /* (width / 2) */
+  border-top-left-radius: 125px;
   border-top-right-radius: 125px;
 }
 .bottom-row .quan-pit {
@@ -163,38 +175,51 @@ const onPitClick = (index) => {
 }
 
 
-/* === CSS MỚI ĐỂ HIỂN THỊ TEXT === */
+/* === CSS MỚI ĐỂ HIỂN THỊ DÂN VÀ QUAN === */
 .stone-summary-text {
   font-family: Arial, sans-serif;
   text-align: center;
   color: #333;
   font-weight: bold;
+  padding: 10px;
 }
 
-.stone-summary-text .count {
-  font-size: 2.5rem;
+.stone-summary-text .label {
+  font-size: 0.9rem;
+  color: #5d4037;
+  margin-bottom: 10px;
+}
+
+.stone-summary-text .counts {
+  font-size: 1.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  align-items: center;
+  justify-content: center;
+}
+
+.quan-count {
+  color: #d32f2f; /* Màu đỏ cho Quan */
   font-weight: bold;
 }
 
-.stone-summary-text .type {
-  font-size: 1rem;
-  text-transform: uppercase;
-  letter-spacing: 1px;
+.dan-count {
+  color: #388e3c; /* Màu xanh lá cho Dân */
 }
 
-/* Màu cho ô Dân */
-.square-pit .stone-summary-text .count {
-  color: #388e3c; /* Màu xanh lá */
+/* Tùy chỉnh cho ô Dân (chỉ hiển thị Dân) */
+.square-pit .stone-summary-text .counts {
+  font-size: 2.5rem;
 }
-.square-pit .stone-summary-text .type {
-  color: #5d4037; /* Màu nâu */
+.square-pit .quan-count {
+  display: none; /* Ẩn số lượng Quan ở ô Dân */
 }
 
-/* Màu cho ô Quan */
-.quan-pit .stone-summary-text .count {
-  color: #d32f2f; /* Màu đỏ */
-}
-.quan-pit .stone-summary-text .type {
-  color: #333;
+/* Tùy chỉnh cho ô Quan */
+.quan-pit .stone-summary-text .counts {
+  flex-direction: row; /* Quan và Dân nằm ngang */
+  font-size: 2rem;
+  gap: 20px;
 }
 </style>
