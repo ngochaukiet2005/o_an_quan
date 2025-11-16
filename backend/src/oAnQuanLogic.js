@@ -1,235 +1,401 @@
-// backend/src/oAnQuanLogic.js
-// (PHIÊN BẢN MỚI HOÀN TOÀN - "QUAN LÀ QUAN, DÂN LÀ DÂN")
+// OAnQuanGame.js
+// Logic Ô Ăn Quan theo bộ luật FINAL v4 của bạn
 
-// ---- 1. Hằng số & Cấu hình Luật chơi ----
-const P1_QUAN_INDEX = 0;
-const P2_QUAN_INDEX = 6;
-const P1_CELLS = [1, 2, 3, 4, 5];
-const P2_CELLS = [7, 8, 9, 10, 11];
-// const QUAN_VALUE = 5; // KHÔNG DÙNG NỮA
-const BORROW_AMOUNT = 5; // Vay 5 Dân
-
-// ---- 2. Logic Di chuyển "Chữ U" (Đã xác nhận) ----
-const MAP_DIRECTION_LEFT = {
-  0: 7, 1: 0, 2: 1, 3: 2, 4: 3, 5: 4,
-  6: 5, 7: 8, 8: 9, 9: 10, 10: 11, 11: 6
-};
-const MAP_DIRECTION_RIGHT = {
-  0: 1, 1: 2, 2: 3, 3: 4, 4: 5, 5: 6,
-  6: 7, 7: 8, 8: 9, 9: 10, 10: 11, 11: 0
-};
-
-const getNextCellIndex = (currentIndex, direction) => {
-  return direction === 'left'
-    ? MAP_DIRECTION_LEFT[currentIndex]
-    : MAP_DIRECTION_RIGHT[currentIndex];
-};
-
-// ---- 3. Các Hàm Logic Thuần Tuý ----
-
-/**
- * Khởi tạo bàn cờ mới
- * (Sử dụng cấu trúc dữ liệu Object MỚI)
- */
-export const initializeGameBoard = () => {
-  const board = [];
-  for (let i = 0; i < 12; i++) {
-    if (i === P1_QUAN_INDEX || i === P2_QUAN_INDEX) {
-      board.push({ quan: 1, dan: 0 }); // Ô Quan
-    } else {
-      board.push({ quan: 0, dan: 5 }); // Ô Dân
-    }
+export class OAnQuanGame {
+  constructor() {
+    this.state = this.getInitialState();
   }
 
-  return {
-    board: board,
-    scores: {
-      player1: { quan: 0, dan: 0 },
-      player2: { quan: 0, dan: 0 }
-    },
-  };
-};
+  // =========================
+  // 1. KHỞI TẠO & TRUY CẬP
+  // =========================
 
-/**
- * Xử lý "Vay Quân" (Luật VI)
- * (Sử dụng cấu trúc dữ liệu MỚI - Chỉ vay Dân)
- */
-export const checkAndPerformBorrow = (gameState, playerSymbol) => {
-  const newGameState = JSON.parse(JSON.stringify(gameState));
-  
-  // "Nếu không đủ 5 dân để gây giống -> thua ngay"
-  if (newGameState.scores[playerSymbol].dan < BORROW_AMOUNT) {
+  getInitialState() {
+    const initialBoard = [
+      { dan: 0, quan: 1 }, // 0: Quan P2
+      { dan: 5, quan: 0 }, // 1: Dân P1
+      { dan: 5, quan: 0 }, // 2
+      { dan: 5, quan: 0 }, // 3
+      { dan: 5, quan: 0 }, // 4
+      { dan: 5, quan: 0 }, // 5
+      { dan: 0, quan: 1 }, // 6: Quan P1
+      { dan: 5, quan: 0 }, // 7: Dân P2
+      { dan: 5, quan: 0 }, // 8
+      { dan: 5, quan: 0 }, // 9
+      { dan: 5, quan: 0 }, // 10
+      { dan: 5, quan: 0 }, // 11
+    ];
+
     return {
-      newState: newGameState,
-      error: 'Không đủ 5 Dân để vay!',
-      isLoser: true,
+      board: initialBoard,
+      scores: {
+        player1: { dan: 0, quan: 0 }, // kho dân / quan đã ăn được
+        player2: { dan: 0, quan: 0 },
+      },
+      debt: {
+        player1: 0,
+        player2: 0,
+      },
+      currentPlayer: 1, // 1 hoặc 2
+      isGameOver: false,
+      winner: null, // 1, 2, 0 (hòa) hoặc null
+      gameMessage: "Ván đấu bắt đầu. Lượt của Người chơi 1.",
     };
   }
 
-  // "bỏ ra 5 dân nhỏ... Mỗi ô dân đặt lại 1 quân"
-  newGameState.scores[playerSymbol].dan -= BORROW_AMOUNT;
-  const playerCells = playerSymbol === 'player1' ? P1_CELLS : P2_CELLS;
-  playerCells.forEach((index) => {
-    newGameState.board[index].dan = 1; // Chỉ thêm Dân
-  });
+  getState() {
+    // Trả về bản copy để tránh sửa trực tiếp từ bên ngoài
+    return JSON.parse(JSON.stringify(this.state));
+  }
 
-  return { newState: newGameState, error: null, isLoser: false };
-};
+  // =========================
+  // 2. HÀM HỖ TRỢ CƠ BẢN
+  // =========================
 
-/**
- * Hàm "Trọng tài" chính
- * (VIẾT LẠI HOÀN TOÀN - Rải Quan trước, Dân sau)
- */
-export const performMove = (gameState, move) => {
-  const { cellIndex, direction } = move;
-  const newGameState = JSON.parse(JSON.stringify(gameState));
+  getValidIndex(index) {
+    return (index + 12) % 12;
+  }
 
-  // Bước 1: Bốc quân (Bốc cả Quan và Dân)
-  let pickedUpQuan = newGameState.board[cellIndex].quan;
-  let pickedUpDan = newGameState.board[cellIndex].dan;
-  newGameState.board[cellIndex].quan = 0;
-  newGameState.board[cellIndex].dan = 0;
-  
-  let currentIndex = cellIndex;
-  let totalStonesToSow = pickedUpQuan + pickedUpDan;
+  getOpponent(player) {
+    return player === 1 ? 2 : 1;
+  }
 
-  while (true) {
-    // --- Gieo quân (Theo luật MỚI: Rải Quan trước, Dân sau) ---
-    // 1. Rải Quan
-    while (pickedUpQuan > 0) {
-      currentIndex = getNextCellIndex(currentIndex, direction);
-      newGameState.board[currentIndex].quan++; // Rải 1 Quan
-      pickedUpQuan--;
-      totalStonesToSow--; // Giảm tổng
-    }
-    // 2. Rải Dân
-    while (pickedUpDan > 0) {
-      currentIndex = getNextCellIndex(currentIndex, direction);
-      newGameState.board[currentIndex].dan++; // Rải 1 Dân
-      pickedUpDan--;
-      totalStonesToSow--; // Giảm tổng
+  getPlayerScoreKey(player) {
+    return player === 1 ? "player1" : "player2";
+  }
+
+  getPlayerCivilianSquares(player) {
+    // P1: 1–5, P2: 7–11
+    return player === 1 ? [1, 2, 3, 4, 5] : [7, 8, 9, 10, 11];
+  }
+
+  isPlayerCivilianSquare(index, player) {
+    if (index === 0 || index === 6) return false;
+    return player === 1 ? (index >= 1 && index <= 5) : (index >= 7 && index <= 11);
+  }
+
+  // =========================
+  // 3. KIỂM TRA NƯỚC ĐI HỢP LỆ
+  // =========================
+
+  isValidMove(squareIndex, player) {
+    // Sai lượt
+    if (player !== this.state.currentPlayer) {
+      return false;
     }
 
-    // --- Xử lý khi rải xong (Mục V & VI) ---
-    const nextIndex = getNextCellIndex(currentIndex, direction);
-    const nextCell = newGameState.board[nextIndex];
-    const nextCellIsEmpty = nextCell.quan === 0 && nextCell.dan === 0;
-
-    // --- Trường hợp 1: (Mục V.1 & VI-TH1) -> BỐC TIẾP ---
-    // "Ô Kế Tiếp Có Quân -> Bốc Tiếp"
-    if (!nextCellIsEmpty) {
-      pickedUpQuan = nextCell.quan; // Bốc Quan
-      pickedUpDan = nextCell.dan; // Bốc Dân
-      totalStonesToSow = pickedUpQuan + pickedUpDan;
-      newGameState.board[nextIndex].quan = 0;
-      newGameState.board[nextIndex].dan = 0;
-      
-      currentIndex = nextIndex;
-      continue; // Quay lại đầu vòng lặp `while(true)` để rải tiếp
+    // Phải là ô dân của phe mình
+    if (!this.isPlayerCivilianSquare(squareIndex, player)) {
+      return false;
     }
 
-    // Nếu code chạy đến đây, nghĩa là nextCellIsEmpty === true
-    // (Ô kế tiếp TRỐNG)
+    const square = this.state.board[squareIndex];
 
-    // --- Trường hợp 2: (Mục V.2 & VI-TH2) -> ĂN ---
-    // "Ô Kế Tiếp Trống, Ô Sau Có Quân -> Ăn"
-    const captureIndex = getNextCellIndex(nextIndex, direction);
-    const captureCell = newGameState.board[captureIndex];
-    const captureCellIsEmpty = captureCell.quan === 0 && captureCell.dan === 0;
+    // Luật bốc: ô phải có dân và KHÔNG có quan
+    if (!(square.dan > 0 && square.quan === 0)) {
+      return false;
+    }
 
-    if (!captureCellIsEmpty) {
-      let totalCapturedQuan = 0;
-      let totalCapturedDan = 0;
-      let currentCaptureIndex = captureIndex;
+    return true;
+  }
 
-      // Bắt đầu "Ăn Dây"
-      while (true) {
-        const cellToCapture = newGameState.board[currentCaptureIndex];
-        if (cellToCapture.quan === 0 && cellToCapture.dan === 0) break; // Dừng nếu gặp ô trống
+  // =========================
+  // 4. VAY DÂN (GÂY GIỐNG)
+  // =========================
 
-        // "ăn toàn bộ quân trong ô sau" (Ăn cả Quan và Dân)
-        totalCapturedQuan += cellToCapture.quan;
-        totalCapturedDan += cellToCapture.dan;
-        cellToCapture.quan = 0;
-        cellToCapture.dan = 0;
+  /**
+   * Kiểm tra 5 ô dân phía mình có trống hết không.
+   * Nếu trống hết -> xử lý gây giống / vay / thua.
+   * Trả về true nếu người chơi bị xử thua (game over) do không vay được.
+   */
+  checkAndHandleBorrowing(player) {
+    const civilIndices = this.getPlayerCivilianSquares(player);
+    const allEmpty = civilIndices.every((i) => {
+      const sq = this.state.board[i];
+      return sq.dan === 0 && sq.quan === 0;
+    });
 
-        // "Xét tiếp ô phía sau đó nữa"
-        const nextEmptyIndex = getNextCellIndex(currentCaptureIndex, direction);
-        const nextCaptureIndex = getNextCellIndex(nextEmptyIndex, direction);
-        
-        const nextEmptyCell = newGameState.board[nextEmptyIndex];
-        const nextCaptureCell = newGameState.board[nextCaptureIndex];
+    if (!allEmpty) return false; // còn dân, không cần vay
 
-        // "Nếu lại gặp trường hợp (trống - có quân) -> tiếp tục ăn"
-        if (
-          (nextEmptyCell.quan === 0 && nextEmptyCell.dan === 0) &&
-          (nextCaptureCell.quan > 0 || nextCaptureCell.dan > 0)
-        ) {
-          currentCaptureIndex = nextCaptureIndex;
-        } else {
-          break; // Hết thể ăn dây
-        }
+    const playerKey = this.getPlayerScoreKey(player);
+    const oppKey = this.getPlayerScoreKey(this.getOpponent(player));
+
+    let playerDan = this.state.scores[playerKey].dan;
+    let oppDan = this.state.scores[oppKey].dan;
+
+    // TH1: đủ >= 5 dân trong kho -> lấy 5 dân chia đều, điểm -5
+    if (playerDan >= 5) {
+      this.state.scores[playerKey].dan -= 5;
+      civilIndices.forEach((i) => {
+        this.state.board[i].dan = 1;
+        this.state.board[i].quan = 0;
+      });
+      this.state.gameMessage = `Người chơi ${player} gây giống bằng 5 Dân của mình (bị trừ 5 điểm Dân).`;
+      return false;
+    }
+
+    // TH2: thiếu dân -> vay đối thủ
+    const need = 5 - playerDan;
+
+    if (oppDan < need) {
+      // Đối thủ không đủ cho vay -> thua ngay
+      this.state.isGameOver = true;
+      this.state.winner = this.getOpponent(player);
+      this.state.gameMessage = `Người chơi ${player} không đủ Dân và đối thủ không đủ cho vay => bị xử thua.`;
+      // Tính điểm cuối theo trạng thái hiện tại
+      this.calculateFinalScores();
+      return true;
+    }
+
+    // Vay được
+    // Điểm mình +need, đối thủ -need (thực chất là dịch chuyển Dân trong kho)
+    this.state.scores[oppKey].dan -= need;
+    this.state.scores[playerKey].dan += need;
+    this.state.debt[playerKey] += need;
+
+    // Sau khi vay xong, mình có đúng 5 Dân -> dùng 5 Dân để gây giống (bị -5)
+    this.state.scores[playerKey].dan -= 5;
+
+    civilIndices.forEach((i) => {
+      this.state.board[i].dan = 1;
+      this.state.board[i].quan = 0;
+    });
+
+    this.state.gameMessage = `Người chơi ${player} vay ${need} Dân từ đối thủ để gây giống (ghi nợ ${need} Dân).`;
+    return false;
+  }
+
+  // =========================
+  // 5. HÀM RẢI & ĂN
+  // =========================
+
+  /**
+   * Rải pieceCount DÂN từ startIndex theo hướng direction (+1 / -1).
+   * Trả về index ô cuối cùng rải dân.
+   */
+  spreadPieces(startIndex, direction, pieceCount) {
+    let currentIndex = startIndex;
+    for (let i = 0; i < pieceCount; i++) {
+      currentIndex = this.getValidIndex(currentIndex + direction);
+      this.state.board[currentIndex].dan += 1;
+    }
+    return currentIndex;
+  }
+
+  /**
+   * Ăn toàn bộ quân tại index (Dân + Quan) vào kho player.
+   */
+  captureAt(index, player) {
+    const sq = this.state.board[index];
+    const eatenDan = sq.dan;
+    const eatenQuan = sq.quan;
+
+    this.state.board[index] = { dan: 0, quan: 0 };
+
+    const key = this.getPlayerScoreKey(player);
+    this.state.scores[key].dan += eatenDan;
+    this.state.scores[key].quan += eatenQuan;
+
+    return { eatenDan, eatenQuan };
+  }
+
+  // =========================
+  // 6. LƯỢT ĐI CHÍNH (makeMove)
+  // =========================
+
+  /**
+   * squareIndex: ô bắt đầu bốc (0–11)
+   * direction: 1 (phải) hoặc -1 (trái)
+   */
+  makeMove(squareIndex, direction) {
+    if (this.state.isGameOver) {
+      this.state.gameMessage = "Ván đấu đã kết thúc. Không thể đi tiếp.";
+      return this.getState();
+    }
+
+    const currentPlayer = this.state.currentPlayer;
+    const dir = direction >= 0 ? 1 : -1;
+
+    // 1. Kiểm tra & xử lý vay dân nếu 5 ô dân trống
+    const loseByBorrow = this.checkAndHandleBorrowing(currentPlayer);
+    if (loseByBorrow) {
+      // Đã set isGameOver & winner & tính điểm trong checkAndHandleBorrowing
+      return this.getState();
+    }
+
+    // 2. Kiểm tra nước đi hợp lệ
+    if (!this.isValidMove(squareIndex, currentPlayer)) {
+      this.state.gameMessage = "Nước đi không hợp lệ.";
+      return this.getState();
+    }
+
+    this.state.gameMessage = "";
+
+    // 3. Bốc dân (KHÔNG bốc Quan)
+    const pickedDan = this.state.board[squareIndex].dan;
+    if (!(pickedDan > 0 && this.state.board[squareIndex].quan === 0)) {
+      this.state.gameMessage = "Nước đi không hợp lệ (ô không chỉ có Dân).";
+      return this.getState();
+    }
+
+    this.state.board[squareIndex].dan = 0;
+
+    // 4. Rải theo hướng
+    let lastIndex = this.spreadPieces(squareIndex, dir, pickedDan);
+
+    // 5. Vòng lặp xử lý sau khi rải:
+    //    - Bốc tiếp nếu ô kế tiếp (next) có Dân và không có Quan
+    //    - Ăn nếu next trống & next2 có quân
+    //    - Mất lượt trong các trường hợp còn lại
+    let continueTurn = true;
+
+    while (continueTurn && !this.state.isGameOver) {
+      const next = this.getValidIndex(lastIndex + dir);
+      const nextSq = this.state.board[next];
+      const next2 = this.getValidIndex(next + dir);
+      const next2Sq = this.state.board[next2];
+
+      // 5.1. Nếu ô kế tiếp có Quan -> mất lượt
+      if (nextSq.quan > 0) {
+        this.state.gameMessage =
+          this.state.gameMessage ||
+          `Người chơi ${currentPlayer} mất lượt vì ô kế tiếp (${next}) có Quan.`;
+        continueTurn = false;
+        break;
       }
-      
-      // Ghi lại số quân ăn được
-      newGameState.lastCaptured = {
-        quan: totalCapturedQuan,
-        dan: totalCapturedDan
-      };
-    }
-    
-    // --- Trường hợp 3: (Mục V.3 & VI-TH3) -> DỪNG ---
-    // "Ô Kế Trống và Ô Sau Cũng Trống -> Dừng Lượt"
-    break; // "Lượt của bạn kết thúc ngay"
-  }
 
-  return { newState: newGameState, turnOver: true };
-};
+      // 5.2. LUẬT BỐC TIẾP:
+      // Nếu ô kế tiếp có Dân và KHÔNG có Quan (dan>0, quan=0) -> bốc & rải tiếp
+      if (nextSq.dan > 0 && nextSq.quan === 0) {
+        const extraDan = nextSq.dan;
+        this.state.board[next].dan = 0;
 
-/**
- * Kiểm tra Game Over
- * (Kiểm tra 2 Ô Quan không còn QUAN LỚN)
- */
-export const checkGameOver = (gameState) => {
-  // "Hai ô Quan đã bị ăn hết" (nghĩa là mất Quan Lớn)
-  if (
-    gameState.board[P1_QUAN_INDEX].quan === 0 &&
-    gameState.board[P2_QUAN_INDEX].quan === 0
-  ) {
-    let finalState = JSON.parse(JSON.stringify(gameState));
+        lastIndex = this.spreadPieces(next, dir, extraDan);
+        // Sau khi rải xong, quay lại while để xét next mới
+        continue;
+      }
 
-    // "thu toàn bộ quân còn lại trong lãnh địa của mình"
-    // (Thu cả Quan (nếu có) và Dân)
-    P1_CELLS.forEach((index) => {
-      finalState.scores.player1.quan += finalState.board[index].quan;
-      finalState.scores.player1.dan += finalState.board[index].dan;
-      finalState.board[index] = { quan: 0, dan: 0 };
-    });
-    P2_CELLS.forEach((index) => {
-      finalState.scores.player2.quan += finalState.board[index].quan;
-      finalState.scores.player2.dan += finalState.board[index].dan;
-      finalState.board[index] = { quan: 0, dan: 0 };
-    });
-    
-    // Thu nốt Dân còn sót lại trong 2 ô Quan
-    finalState.scores.player1.dan += finalState.board[P1_QUAN_INDEX].dan;
-    finalState.scores.player2.dan += finalState.board[P2_QUAN_INDEX].dan;
-    finalState.board[P1_QUAN_INDEX].dan = 0;
-    finalState.board[P2_QUAN_INDEX].dan = 0;
+      // 5.3. LUẬT ĂN:
+      // Nếu next TRỐNG & next2 CÓ QUÂN -> ăn toàn bộ next2, kết thúc lượt
+      const nextIsEmpty = nextSq.dan === 0 && nextSq.quan === 0;
+      const next2HasPieces = next2Sq.dan > 0 || next2Sq.quan > 0;
 
-    // Tính điểm cuối cùng
-    const p1TotalScore = (finalState.scores.player1.quan * 5) + finalState.scores.player1.dan;
-    const p2TotalScore = (finalState.scores.player2.quan * 5) + finalState.scores.player2.dan;
-    
-    let winnerSymbol = 'draw';
-    if (p1TotalScore > p2TotalScore) {
-      winnerSymbol = 'player1';
-    } else if (p2TotalScore > p1TotalScore) {
-      winnerSymbol = 'player2';
+      if (nextIsEmpty && next2HasPieces) {
+        const { eatenDan, eatenQuan } = this.captureAt(next2, currentPlayer);
+        this.state.gameMessage = `Người chơi ${currentPlayer} ăn ${eatenQuan} Quan và ${eatenDan} Dân ở ô ${next2}.`;
+        continueTurn = false;
+        break;
+      }
+
+      // 5.4. Hai ô kế tiếp đều trống -> mất lượt
+      if (
+        nextIsEmpty &&
+        next2Sq.dan === 0 &&
+        next2Sq.quan === 0
+      ) {
+        this.state.gameMessage =
+          this.state.gameMessage ||
+          `Người chơi ${currentPlayer} mất lượt vì hai ô kế tiếp (${next}, ${next2}) đều trống.`;
+        continueTurn = false;
+        break;
+      }
+
+      // 5.5. Trường hợp không bốc tiếp, không ăn, không gặp Quan:
+      //      -> kết thúc lượt (fallback an toàn)
+      this.state.gameMessage =
+        this.state.gameMessage || `Lượt của Người chơi ${currentPlayer} kết thúc.`;
+      continueTurn = false;
+      break;
     }
 
-    return { isGameOver: true, finalState, winnerSymbol };
+    // 6. Kiểm tra kết thúc ván (cả 2 Quan = 0 và không còn Quan trên bàn)
+    this.checkGameEnd();
+
+    if (this.state.isGameOver) {
+      // Nếu chưa tính điểm thì tính
+      this.calculateFinalScores();
+    } else {
+      // Đổi lượt
+      this.state.currentPlayer = this.getOpponent(currentPlayer);
+      if (!this.state.gameMessage) {
+        this.state.gameMessage = `Đến lượt Người chơi ${this.state.currentPlayer}.`;
+      }
+    }
+
+    return this.getState();
   }
 
-  return { isGameOver: false };
-};
+  // =========================
+  // 7. KẾT THÚC VÁN & TÍNH ĐIỂM
+  // =========================
+
+  checkGameEnd() {
+    if (this.state.isGameOver) return;
+
+    // Theo luật: trò chơi dừng khi 2 ô Quan đều trống
+    // và không còn Quan nào trên bàn.
+    const hasAnyQuan =
+      this.state.board.some((sq) => sq.quan > 0);
+
+    if (!hasAnyQuan) {
+      this.state.isGameOver = true;
+      if (!this.state.gameMessage) {
+        this.state.gameMessage = "Ván đấu kết thúc do cả hai Quan đã bị ăn hết.";
+      }
+    }
+  }
+
+  calculateFinalScores() {
+    // Chỉ tính 1 lần
+    // (nếu muốn bảo vệ thêm thì có thể check cờ, nhưng ở đây cứ tính khi gameOver)
+    const s = this.state;
+
+    // 1. Thu toàn bộ Dân còn lại trên bàn vào kho
+    const p1Squares = this.getPlayerCivilianSquares(1);
+    const p2Squares = this.getPlayerCivilianSquares(2);
+
+    p1Squares.forEach((i) => {
+      s.scores.player1.dan += s.board[i].dan;
+      s.board[i].dan = 0;
+    });
+
+    p2Squares.forEach((i) => {
+      s.scores.player2.dan += s.board[i].dan;
+      s.board[i].dan = 0;
+    });
+
+    // (Nếu bạn muốn thu Dân trên ô Quan về phe tương ứng, có thể thêm:
+    //  s.scores.player2.dan += s.board[0].dan; s.board[0].dan = 0;
+    //  s.scores.player1.dan += s.board[6].dan; s.board[6].dan = 0;
+    // Ở đây mình giữ nguyên như thiết kế trước: chỉ thu ô Dân.)
+
+    // 2. TRẢ NỢ: người vay bị trừ Dân, đối thủ được cộng lại
+    const repayDebt = (borrowerKey, lenderKey) => {
+      const debtAmount = s.debt[borrowerKey];
+      if (debtAmount <= 0) return;
+
+      const canRepay = Math.min(debtAmount, s.scores[borrowerKey].dan);
+      s.scores[borrowerKey].dan -= canRepay;
+      s.scores[lenderKey].dan += canRepay;
+      s.debt[borrowerKey] -= canRepay;
+    };
+
+    repayDebt("player1", "player2");
+    repayDebt("player2", "player1");
+
+    // 3. TÍNH ĐIỂM: Quan * 5 + Dân
+    const finalScoreP1 =
+      s.scores.player1.quan * 5 + s.scores.player1.dan;
+    const finalScoreP2 =
+      s.scores.player2.quan * 5 + s.scores.player2.dan;
+
+    // 4. Xác định winner nếu chưa set
+    if (s.winner === null) {
+      if (finalScoreP1 > finalScoreP2) s.winner = 1;
+      else if (finalScoreP2 > finalScoreP1) s.winner = 2;
+      else s.winner = 0; // hòa
+    }
+
+    s.gameMessage += ` | Điểm cuối: P1 = ${finalScoreP1}, P2 = ${finalScoreP2}.`;
+  }
+}

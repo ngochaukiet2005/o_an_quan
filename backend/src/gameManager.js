@@ -1,30 +1,26 @@
 // src/gameManager.js
-// (CẬP NHẬT THEO LOGIC MỚI)
+// (ĐÃ VIẾT LẠI HOÀN TOÀN để sử dụng OAnQuanGame.js)
 
 import { generateRoomId } from "./utils.js";
-import {
-  initializeGameBoard,
-  checkAndPerformBorrow,
-  performMove,
-  checkGameOver,
-} from "./oAnQuanLogic.js";
+import { OAnQuanGame } from "./OAnQuanGame.js"; // <-- IMPORT LOGIC MỚI
 
 // ---- 1. Quản lý Trạng thái ----
 const rooms = new Map();
 const matchmakingQueue = [];
 
-const P1_CELLS = [1, 2, 3, 4, 5];
-const P2_CELLS = [7, 8, 9, 10, 11];
-
 // ---- 2. Các Hàm Xử lý Sự kiện ----
-// (handleCreateRoom, handleJoinRoom giữ nguyên y như file cũ của bạn)
+
 export const handleCreateRoom = (socket, playerName) => {
   const roomId = generateRoomId();
-  const player1 = { id: socket.id, name: playerName, symbol: "X" };
+  const player1 = { id: socket.id, name: playerName, symbol: "X" }; // X là P1
+
+  // Khởi tạo một thực thể (instance) game mới
+  const game = new OAnQuanGame(); // <-- DÙNG CLASS MỚI
+
   const room = {
     id: roomId,
     players: [player1],
-    gameState: initializeGameBoard(), // <-- Gọi hàm MỚI
+    game: game, // <-- Lưu trữ thực thể game
     status: "waiting",
     nextTurnPlayerId: null,
   };
@@ -45,144 +41,106 @@ export const handleJoinRoom = (io, socket, roomId, playerName) => {
   if (room.players.length >= 2) {
     return socket.emit("error", { message: "Phòng đã đầy." });
   }
-  const player2 = { id: socket.id, name: playerName, symbol: "O" };
+  const player2 = { id: socket.id, name: playerName, symbol: "O" }; // O là P2
   room.players.push(player2);
   room.status = "playing";
-  room.nextTurnPlayerId = room.players[0].id; // P1 đi trước
+  room.nextTurnPlayerId = room.players[0].id; // P1 (X) đi trước
+
   socket.join(roomId);
+
+  // Lấy trạng thái ban đầu từ thực thể game
+  const initialState = room.game.getState(); // <-- DÙNG CLASS MỚI
+
   const startData = {
     players: room.players,
     startingPlayerId: room.nextTurnPlayerId,
-    board: room.gameState.board, // <-- Gửi board MỚI (array of objects)
-    scores: room.gameState.scores, // <-- Gửi score MỚI (object)
+    board: initialState.board,
+    scores: initialState.scores,
+    debt: initialState.debt,
     roomId: roomId,
   };
   io.to(roomId).emit("game_start", startData);
 };
 
-
 /**
- * (C -> S) Xử lý một nước đi (Cập nhật theo logic MỚI)
+ * (C -> S) Xử lý một nước đi (VIẾT LẠI HOÀN TOÀN)
  */
 export const handleMakeMove = (io, socket, payload) => {
   const room = findRoomBySocketId(socket.id);
   if (!room) return;
 
-  const { players } = room;
-  const { cellIndex, direction } = payload;
-  let currentGameState = room.gameState;
+  const game = room.game; // <-- Lấy thực thể game của phòng
+  if (!game) return;
 
-  // 1. Xác thực lượt
-  if (socket.id !== room.nextTurnPlayerId) {
+  const { cellIndex, direction } = payload;
+  // Chuyển 'left'/'right' (từ client) thành -1/1 (cho logic)
+  const moveDirection = direction === "right" ? 1 : -1;
+
+  // 1. Xác thực người chơi (dựa trên state của game)
+  const playerIndex = room.players.findIndex((p) => p.id === socket.id);
+  const playerNumber = playerIndex === 0 ? 1 : 2; // P1 hoặc P2
+  const currentState = game.getState();
+
+  if (currentState.currentPlayer !== playerNumber) {
     return socket.emit("invalid_move", { message: "Không phải lượt của bạn!" });
   }
-  
-  const playerIndex = players.findIndex((p) => p.id === socket.id);
-  const playerSymbol = playerIndex === 0 ? "player1" : "player2";
-  const playerCells = playerSymbol === 'player1' ? P1_CELLS : P2_CELLS;
 
-  // 2. Xác thực Nước đi (Luật III.1)
-  if (!playerCells.includes(cellIndex)) {
-    return socket.emit("invalid_move", { 
-      message: "Nước đi không hợp lệ! Bạn chỉ được bốc 5 ô dân của mình." 
+  // 2. Thực hiện nước đi
+  // Tất cả logic (Vay, Rải, Ăn, Dừng, Mất lượt) đều nằm trong hàm .makeMove()
+  const newState = game.makeMove(cellIndex, moveDirection); // <-- DÙNG CLASS MỚI
+
+  // 3. Kiểm tra xem nước đi có hợp lệ không (dựa trên tin nhắn trả về)
+  // Đây chính là lý do bạn gặp lỗi "Không Hợp Lệ"
+  if (newState.gameMessage === "Nước đi không hợp lệ.") {
+    return socket.emit("invalid_move", {
+      message: "Nước đi không hợp lệ (Không được bốc ô trống hoặc ô Quan).",
     });
   }
 
-  // 3. Xử lý logic "Hết Quân" (Luật VI)
-  // (Kiểm tra 5 ô dân không còn Dân VÀ Quan)
-  const playerCellsAreEmpty = playerCells.every(
-    (index) =>
-      currentGameState.board[index].quan === 0 &&
-      currentGameState.board[index].dan === 0
-  );
-
-  if (playerCellsAreEmpty) {
-    // Nếu tất cả 5 ô đều trống, phải thực hiện Luật VI
-    const borrowResult = checkAndPerformBorrow(currentGameState, playerSymbol);
-      
-    if (borrowResult.isLoser) {
-      // "Nếu không đủ 5 dân -> thua ngay"
-      const winner = players.find(p => p.id !== socket.id);
-      io.to(room.id).emit("game_over", {
-          winner: winner.id,
-          reason: "win_by_borrow_fail",
-          finalScores: currentGameState.scores, // Gửi score object
-      });
-      rooms.delete(room.id);
-      return;
-    }
-    
-    // Cập nhật state sau khi vay (rải 5 Dân) thành công
-    currentGameState = borrowResult.newState;
-    
-    io.to(room.id).emit("update_game_state", {
-        board: currentGameState.board,
-        nextTurnPlayerId: room.nextTurnPlayerId,
-        scores: currentGameState.scores,
-    });
-    
-    // Kiểm tra ô vừa click (giờ đã có 1 Dân)
-    if (currentGameState.board[cellIndex].dan === 0) {
-         return socket.emit("invalid_move", { 
-            message: "Bạn phải chọn 1 trong 5 ô dân (giờ đã có 1 quân) để đi." 
-         });
-    }
-    
-  } else if (currentGameState.board[cellIndex].quan === 0 && currentGameState.board[cellIndex].dan === 0) {
-      // Trường hợp: Bốc 0 quân (ô đã chọn trống)
-      // Đây là một nước đi hợp lệ (ăn 0 quân).
-  }
-
-  // 4. Giao logic rải/ăn cho "Trọng tài" (Luật IV)
-  const moveResult = performMove(currentGameState, { cellIndex, direction });
-
-  // 5. Cập nhật trạng thái game của phòng VÀ cộng điểm
-  room.gameState = moveResult.newState;
-  // CẬP NHẬT CÁCH TÍNH ĐIỂM
-  if (room.gameState.lastCaptured) {
-      room.gameState.scores[playerSymbol].quan += room.gameState.lastCaptured.quan;
-      room.gameState.scores[playerSymbol].dan += room.gameState.lastCaptured.dan;
-      delete room.gameState.lastCaptured; // Xóa điểm tạm
-  }
-
-  // 6. Kiểm tra Game Over (Luật VII)
-  const gameOverCheck = checkGameOver(room.gameState);
-  if (gameOverCheck.isGameOver) {
-    room.gameState = gameOverCheck.finalState;
-
+  // 4. Kiểm tra Game Over (LUẬT 5)
+  if (newState.isGameOver) {
     let winnerId = null;
-    if (gameOverCheck.winnerSymbol === 'player1') winnerId = players[0].id;
-    else if (gameOverCheck.winnerSymbol === 'player2') winnerId = players[1].id;
+    if (newState.winner === 1) winnerId = room.players[0].id;
+    else if (newState.winner === 2) winnerId = room.players[1].id;
+
+    // Tính tổng điểm cuối cùng (Client GameRoom.vue cần cái này)
+    const finalP1 = newState.scores.player1;
+    const finalP2 = newState.scores.player2;
+    // (Đây là nơi duy nhất dùng 5x)
+    const totalP1 = finalP1.quan * 5 + finalP1.dan;
+    const totalP2 = finalP2.quan * 5 + finalP2.dan;
 
     io.to(room.id).emit("game_over", {
       winner: winnerId,
-      reason: gameOverCheck.winnerSymbol === 'draw' ? 'draw' : 'win',
-      finalScores: room.gameState.scores, // Gửi score object
+      reason: newState.winner === 0 ? "draw" : "win",
+      finalScores: {
+        player1: totalP1,
+        player2: totalP2,
+      },
+      gameMessage: newState.gameMessage, // Gửi tin nhắn (VD: "Thua do không thể vay")
     });
-    
+
     rooms.delete(room.id);
     return;
   }
 
-  // 7. Chuyển lượt
-  if (moveResult.turnOver) {
-    const nextPlayer = players.find((p) => p.id !== socket.id);
-    room.nextTurnPlayerId = nextPlayer.id;
+  // 5. Cập nhật trạng thái (nếu game chưa kết thúc)
+  const nextPlayer = room.players[newState.currentPlayer - 1]; // Lấy socket ID của người chơi tiếp theo
 
-    io.to(room.id).emit("update_game_state", {
-      board: room.gameState.board,
-      nextTurnPlayerId: room.nextTurnPlayerId,
-      scores: room.gameState.scores,
-    });
-  }
+  io.to(room.id).emit("update_game_state", {
+    board: newState.board,
+    nextTurnPlayerId: nextPlayer.id,
+    scores: newState.scores,
+    debt: newState.debt,
+    gameMessage: newState.gameMessage, // Gửi tin nhắn (VD: "Mất lượt", "Ăn 5 Dân"...)
+  });
 };
 
-
 // --- CÁC HÀM KHÁC (giữ nguyên) ---
-// (handleLeaveRoom, handleDisconnect, handleSendMessage, findRoomBySocketId, handleJoinMatchmaking)
 
 export const handleLeaveRoom = (io, socket) => {
   const room = findRoomBySocketId(socket.id);
+  // ... (giữ nguyên code)
   if (!room) return;
   const otherPlayer = room.players.find((p) => p.id !== socket.id);
   if (otherPlayer) {
@@ -201,6 +159,7 @@ export const handleLeaveRoom = (io, socket) => {
 
 export const handleDisconnect = (io, socket, reason) => {
   const queueIndex = matchmakingQueue.findIndex((p) => p.id === socket.id);
+  // ... (giữ nguyên code)
   if (queueIndex > -1) {
     matchmakingQueue.splice(queueIndex, 1);
   }
@@ -220,6 +179,7 @@ export const handleDisconnect = (io, socket, reason) => {
 
 export const handleSendMessage = (io, socket, payload) => {
   const room = findRoomBySocketId(socket.id);
+  // ... (giữ nguyên code)
   if (!room) return;
   const player = room.players.find((p) => p.id === socket.id);
   io.to(room.id).emit("new_message", {
@@ -229,6 +189,7 @@ export const handleSendMessage = (io, socket, payload) => {
 };
 
 const findRoomBySocketId = (socketId) => {
+  // ... (giữ nguyên code)
   for (const room of rooms.values()) {
     if (room.players.some((p) => p.id === socketId)) {
       return room;
@@ -239,6 +200,7 @@ const findRoomBySocketId = (socketId) => {
 
 export const handleJoinMatchmaking = (io, socket, playerName) => {
   if (matchmakingQueue.some((p) => p.id === socket.id)) {
+  // ... (giữ nguyên code)
     return socket.emit("queue_update", {
       message: "Bạn đã ở trong hàng chờ rồi.",
     });
@@ -255,13 +217,17 @@ export const handleJoinMatchmaking = (io, socket, playerName) => {
     if (!socket1) {
       if (socket2) {
         matchmakingQueue.unshift(player2Data);
-        socket2.emit("queue_update", { message: "Đối thủ đã hủy. Đang tìm lại..." });
+        socket2.emit("queue_update", {
+          message: "Đối thủ đã hủy. Đang tìm lại...",
+        });
       }
       return;
     }
     if (!socket2) {
       matchmakingQueue.unshift(player1Data);
-      socket1.emit("queue_update", { message: "Đối thủ đã hủy. Đang tìm lại..." });
+      socket1.emit("queue_update", {
+        message: "Đối thủ đã hủy. Đang tìm lại...",
+      });
       return;
     }
 
@@ -269,10 +235,12 @@ export const handleJoinMatchmaking = (io, socket, playerName) => {
     const player1 = { id: player1Data.id, name: player1Data.name, symbol: "X" };
     const player2 = { id: player2Data.id, name: player2Data.name, symbol: "O" };
 
+    const game = new OAnQuanGame(); // <-- Khởi tạo game MỚI
+
     const room = {
       id: roomId,
       players: [player1, player2],
-      gameState: initializeGameBoard(), // <-- Gọi hàm MỚI
+      game: game, // <-- Lưu game MỚI
       status: "playing",
       nextTurnPlayerId: player1.id,
     };
@@ -280,13 +248,59 @@ export const handleJoinMatchmaking = (io, socket, playerName) => {
     socket1.join(roomId);
     socket2.join(roomId);
 
+    const initialState = room.game.getState(); // <-- Lấy state MỚI
+
     const startData = {
       players: room.players,
       startingPlayerId: room.nextTurnPlayerId,
-      board: room.gameState.board, // <-- Gửi board MỚI
-      scores: room.gameState.scores, // <-- Gửi score MỚI
+      board: initialState.board,
+      scores: initialState.scores,
+      debt: initialState.debt,
       roomId: roomId,
     };
     io.to(roomId).emit("game_start", startData);
   }
 };
+// ===============================
+//  GẮN TOÀN BỘ SOCKET HANDLER
+// ===============================
+export function setupSocketHandlers(io) {
+  io.on("connection", (socket) => {
+    console.log("✔ Client connected:", socket.id);
+
+    // --- Tạo phòng ---
+    socket.on("create_room", ({ playerName }) => {
+      handleCreateRoom(socket, playerName);
+    });
+
+    // --- Tham gia phòng ---
+    socket.on("join_room", ({ roomId, playerName }) => {
+      handleJoinRoom(io, socket, roomId, playerName);
+    });
+
+    // --- Matchmaking ---
+    socket.on("join_matchmaking", ({ playerName }) => {
+      handleJoinMatchmaking(io, socket, playerName);
+    });
+
+    // --- Xử lý nước đi ---
+    socket.on("make_move", (payload) => {
+      handleMakeMove(io, socket, payload);
+    });
+
+    // --- Chat ---
+    socket.on("send_message", (payload) => {
+      handleSendMessage(io, socket, payload);
+    });
+
+    // --- Người chơi rời phòng ---
+    socket.on("leave_room", () => {
+      handleLeaveRoom(io, socket);
+    });
+
+    // --- Ngắt kết nối ---
+    socket.on("disconnect", (reason) => {
+      handleDisconnect(io, socket, reason);
+    });
+  });
+}

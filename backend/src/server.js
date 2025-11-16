@@ -1,67 +1,40 @@
-// src/server.js
+import os from "os";
 import express from "express";
 import http from "http";
-import { Server } from "socket.io";
 import cors from "cors";
-// Import các hàm điều phối từ gameManager
-import {
-  handleCreateRoom,
-  handleJoinRoom,
-  handleMakeMove,
-  handleSendMessage,
-  handleDisconnect,
-  handleLeaveRoom,
-  handleJoinMatchmaking,
-} from "./gameManager.js";
+import { Server } from "socket.io";
+import setupSocketHandlers from "./gameManager.js";   // ← đúng
 
-// ---- 1. Khởi tạo Server ----
-const PORT = process.env.PORT || 3000;
+function getLocalIP() {
+  const nets = os.networkInterfaces();
+  for (const name of Object.keys(nets)) {
+    for (const net of nets[name]) {
+      if (net.family === "IPv4" && !net.internal) return net.address;
+    }
+  }
+  return "127.0.0.1";
+}
+
+const HOST = getLocalIP();
+const PORT = 3000;
+
 const app = express();
 app.use(cors());
 
-const httpServer = http.createServer(app);
-const io = new Server(httpServer, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"],
-  },
+const server = http.createServer(app);
+
+const io = new Server(server, {
+  cors: { origin: "*" }
 });
 
-// ---- 2. Lắng nghe sự kiện Socket.IO ----
-io.on("connection", (socket) => {
-  console.log(`Client đã kết nối: ${socket.id}`);
-
-  socket.on("create_room", (payload) => {
-    handleCreateRoom(socket, payload.playerName);
-  });
-
-  socket.on("join_room", (payload) => {
-    handleJoinRoom(io, socket, payload.roomId, payload.playerName);
-  });
-
-  socket.on("join_matchmaking", (payload) => {
-    handleJoinMatchmaking(io, socket, payload.playerName);
-  });
-
-  socket.on("make_move", (payload) => {
-    handleMakeMove(io, socket, payload);
-  });
-
-  socket.on("send_message", (payload) => {
-    handleSendMessage(io, socket, payload);
-  });
-
-  socket.on("leave_room", () => {
-    handleLeaveRoom(io, socket);
-  });
-
-  socket.on("disconnect", (reason) => {
-    console.log(`Client đã ngắt kết nối: ${socket.id} (Lý do: ${reason})`);
-    handleDisconnect(io, socket, reason);
-  });
+// API optional
+app.get("/server-info", (req, res) => {
+  res.json({ host: HOST, port: PORT });
 });
 
-// ---- 3. Chạy Server ----
-httpServer.listen(PORT, () => {
-  console.log(`Server đang chạy trên cổng ${PORT}`);
+// Kích hoạt Socket IO
+setupSocketHandlers(io);
+
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`Backend chạy tại: http://${HOST}:${PORT}`);
 });
