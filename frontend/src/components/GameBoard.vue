@@ -1,6 +1,6 @@
 <template>
   <div class="game-wrapper">
-    <div class="board" v-if="board.length === 12">
+    <div class="board" v-if="board.length === 12" :class="playerViewClass">
       <div
         :class="['cell', 'quan-cell', 'quan-left', { clickable: false }]"
         @click="handleClick(0)"
@@ -82,7 +82,11 @@ const myPlayerNumber = computed(() => {
   const me = props.players.find((p) => p.id === props.playerId);
   return me?.symbol === "X" ? 1 : 2;
 });
-
+// === THÊM DÒNG NÀY VÀO ===
+const playerViewClass = computed(() => {
+  return myPlayerNumber.value === 2 ? 'p2-view' : 'p1-view';
+});
+// =========================
 const isMyTurn = computed(() => props.currentTurnId === props.playerId);
 
 // Hàm kiểm tra xem ô có phải của phe mình không
@@ -224,4 +228,16 @@ function handleClick(index) {
   grid-row: 2;
   grid-column: 2;
 }
+/* --- Bố cục Xoay cho P2 --- */
+.p2-view {
+  /* Xoay toàn bộ bàn cờ 180 độ */
+  transform: rotate(180deg);
+  transition: transform 0.5s ease;
+}
+
+.p2-view .cell {
+  /* Xoay ngược chữ và các-thành-phần-con lại để đọc được */
+  transform: rotate(180deg);
+}
+/* ================================= */
 </style>
