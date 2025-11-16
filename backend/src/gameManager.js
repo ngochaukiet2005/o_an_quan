@@ -328,7 +328,16 @@ export function setupSocketHandlers(io) {
     socket.on("make_move", (payload) => {
       handleMakeMove(io, socket, payload);
     });
-
+    // === THÊM MỚI TẠI ĐÂY ===
+    socket.on("game:request_state", () => {
+      handleRequestGameState(io, socket);
+    });
+    // ========================
+    // === 💡 THÊM DÒNG NÀY VÀO 💡 ===
+    socket.on("game:request_state", () => {
+      handleRequestGameState(io, socket);
+    });
+    // =================================
     // --- Chat ---
     socket.on("chat:send", (payload) => { // <-- Đổi "send_message"
       handleSendMessage(io, socket, payload);
