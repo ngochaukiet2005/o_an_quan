@@ -100,7 +100,11 @@ function handleStateUpdate(state) {
   
   // Backend cũ gửi `nextTurnPlayerId`, backend mới gửi `startingPlayerId`
   currentTurnId.value = state.nextTurnPlayerId || state.startingPlayerId; 
-  
+  socketService.getSocket().on("update_game_state", handleStateUpdate);
+
+  // === THÊM DÒNG NÀY ĐỂ NHẬN BÀN CỜ KHI MỚI VÀO ===
+  socketService.getSocket().on("game_start", handleStateUpdate);
+  // ===============================================
   // Cập nhật tin nhắn (nếu có)
   if (state.gameMessage) {
      messages.value.push({ senderName: "Hệ thống", message: state.gameMessage });

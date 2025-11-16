@@ -1,46 +1,56 @@
 <template>
   <div class="game-wrapper">
-    <h2>Bàn chơi Ô Ăn Quan</h2>
-
     <div class="board" v-if="board.length === 12">
       <div
-        :class="['cell', 'quan-left', { clickable: isClickable(5) }]"
-        @click="handleClick(5)"
+        :class="['cell', 'quan-cell', 'quan-left', { clickable: false }]"
+        @click="handleClick(0)"
       >
-        <span>{{ board[5] }}</span>
+        <span class="label">Ô 0 (Quan P2)</span>
+        <div class="stones">
+          <span class="quan-count">Q: {{ board[0].quan }}</span>
+          <span class="dan-count">D: {{ board[0].dan }}</span>
+        </div>
       </div>
 
       <div class="board-row cell-row-a">
         <div
-          v-for="(cell, index) in board.slice(0, 5)"
-          :key="index"
-          :class="['cell', { clickable: isClickable(index) }]"
-          @click="handleClick(index)"
+          v-for="i in 5"
+          :key="11 - i + 1"
+          :class="['cell', 'dan-cell', { clickable: isClickable(11 - i + 1) }]"
+          @click="handleClick(11 - i + 1)"
         >
-          <span>{{ cell }}</span>
+          <span class="label">Ô {{ 11 - i + 1 }}</span>
+          <div class="stones">
+            <span class="dan-count">D: {{ board[11 - i + 1].dan }}</span>
+          </div>
         </div>
       </div>
 
       <div class="board-row cell-row-b">
         <div
-          v-for="(cell, index) in board.slice(6, 11)"
-          :key="index + 6"
-          :class="['cell', { clickable: isClickable(index + 6) }]"
-          @click="handleClick(index + 6)"
+          v-for="i in 5"
+          :key="i"
+          :class="['cell', 'dan-cell', { clickable: isClickable(i) }]"
+          @click="handleClick(i)"
         >
-          <span>{{ cell }}</span>
+          <span class="label">Ô {{ i }}</span>
+          <div class="stones">
+            <span class="dan-count">D: {{ board[i].dan }}</span>
+          </div>
         </div>
       </div>
 
       <div
-        :class="['cell', 'quan-right', { clickable: isClickable(11) }]"
-        @click="handleClick(11)"
+        :class="['cell', 'quan-cell', 'quan-right', { clickable: false }]"
+        @click="handleClick(6)"
       >
-        <span>{{ board[11] }}</span>
+        <span class="label">Ô 6 (Quan P1)</span>
+        <div class="stones">
+          <span class="quan-count">Q: {{ board[6].quan }}</span>
+          <span class="dan-count">D: {{ board[6].dan }}</span>
+        </div>
       </div>
     </div>
-
-    <div class="turn-box"><strong>Lượt của:</strong> {{ currentTurnName }}</div>
   </div>
 </template>
 
@@ -48,31 +58,72 @@
 import { computed } from "vue";
 
 const props = defineProps({
-  board: { type: Array, required: true },
-  players: { type: Array, required: true },
-  playerId: { type: String, required: true },
-  currentTurnId: { type: String, required: true },
+  board: {
+    type: Array,
+    default: () => [],
+  },
+  players: {
+    type: Array,
+    default: () => [],
+  },
+  currentTurnId: {
+    type: String,
+    default: "",
+  },
+  playerId: {
+    type: String,
+    default: "",
+  },
 });
 
 const emits = defineEmits(["move"]);
 
-// Tên người đang chơi
-const currentTurnName = computed(() => {
-  const p = props.players.find((x) => x.id === props.currentTurnId);
-  return p ? p.name : "Đang chờ";
+const myPlayerNumber = computed(() => {
+  const me = props.players.find((p) => p.id === props.playerId);
+  return me?.symbol === "X" ? 1 : 2;
 });
 
-// Ô có thể bấm được không
-function isClickable(index) {
-  // Không cho bấm vào 2 ô Quan
-  if (index === 0 || index === props.board.length - 1) return false;
+const isMyTurn = computed(() => props.currentTurnId === props.playerId);
 
-  // Chỉ được bấm khi tới lượt mình
-  return props.playerId === props.currentTurnId;
-}
+// Hàm kiểm tra xem ô có phải của phe mình không
+const isMySquare = (index) => {
+  if (myPlayerNumber.value === 1) {
+    return index >= 1 && index <= 5; // P1 sở hữu ô 1-5
+  } else {
+    return index >= 7 && index <= 11; // P2 sở hữu ô 7-11
+  }
+};
+
+const isClickable = (index) => {
+  if (
+    !isMyTurn.value ||
+    !props.board[index] ||
+    index === 0 ||
+    index === 6
+  ) {
+    return false;
+  }
+  // Chỉ được nhấp vào ô của mình
+  if (!isMySquare(index)) {
+    return false;
+  }
+  // Phải có Dân và không có Quan
+  return props.board[index].dan > 0 && props.board[index].quan === 0;
+};
 
 function handleClick(index) {
-  if (!isClickable(index)) return;
+  if (!isClickable(index)) {
+    if (!isMyTurn.value) {
+      alert("Chưa đến lượt của bạn!");
+    } else if (index === 0 || index === 6) {
+      alert("Không thể bốc từ ô Quan.");
+    } else if (!isMySquare(index)) {
+      alert("Bạn chỉ có thể chọn ô dân ở phía của mình.");
+    } else if (props.board[index].dan === 0) {
+      alert("Không thể bốc từ ô dân rỗng.");
+    }
+    return;
+  }
   emits("move", index);
 }
 </script>
@@ -83,15 +134,17 @@ function handleClick(index) {
   text-align: center;
 }
 
-/* Trong <style scoped> của GameBoard.vue */
-
 .board {
   display: grid;
   grid-template-columns: 1fr 5fr 1fr; /* Cột Quan | 5 ô Dân | Cột Quan */
-  grid-template-rows: 1fr 1fr; /* Hàng A | Hàng B */
+  grid-template-rows: auto auto; /* Hàng A | Hàng B */
   gap: 10px;
   max-width: 900px;
   margin: 20px auto;
+  padding: 15px;
+  background-color: #f0e6d2;
+  border: 5px solid #8d6e63;
+  border-radius: 20px;
 }
 
 .board-row {
@@ -106,51 +159,69 @@ function handleClick(index) {
   background: white;
   border-radius: 10px;
   border: 1px solid #d1d5db;
-  font-size: 18px;
-  min-height: 50px; /* Thêm chiều cao */
+  font-size: 16px;
+  min-height: 100px;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
+  cursor: not-allowed;
+  transition: all 0.2s ease;
+}
+
+.cell.clickable {
+  cursor: pointer;
+  border-color: #10b981;
+}
+.cell.clickable:hover {
+  background-color: #f7f3e8;
+  transform: translateY(-2px);
+}
+
+.cell .label {
+  font-size: 0.8rem;
+  font-weight: bold;
+  color: #5d4037;
+}
+
+.cell .stones {
+  font-size: 1.5rem;
+  font-weight: bold;
+}
+.dan-cell .stones {
+  font-size: 2rem;
+}
+
+.quan-count {
+  color: #d32f2f;
+  margin-right: 10px;
+}
+.dan-count {
+  color: #388e3c;
 }
 
 /* Định vị các ô quan */
-.cell.quan-left {
-  grid-row: 1 / 3; /* Chạy từ hàng 1 đến hàng 3 */
-  grid-column: 1 / 2; /* Cột 1 */
-  min-height: 120px; /* Cao gấp đôi */
+.quan-cell {
+  border-radius: 40px;
+  min-height: 120px;
+  justify-content: center;
+}
+.quan-left {
+  grid-row: 1 / span 2; /* Nằm ở hàng 1, kéo dài 2 hàng */
+  grid-column: 1;
+}
+.quan-right {
+  grid-row: 1 / span 2; /* Nằm ở hàng 1, kéo dài 2 hàng */
+  grid-column: 3;
 }
 
-.cell.quan-right {
-  grid-row: 1 / 3; /* Chạy từ hàng 1 đến hàng 3 */
-  grid-column: 3 / 4; /* Cột 3 */
-  min-height: 120px; /* Cao gấp đôi */
-}
-
-/* Hàng A (ô 1-5) */
+/* Định vị hàng dân */
 .cell-row-a {
-  grid-row: 1 / 2;
-  grid-column: 2 / 3;
+  grid-row: 1;
+  grid-column: 2;
 }
-
-/* Hàng B (ô 6-10) */
 .cell-row-b {
-  grid-row: 2 / 3;
-  grid-column: 2 / 3;
-}
-
-/* ... các style .clickable khác giữ nguyên ... */
-
-.cell.clickable {
-  background: #d1fae5;
-  cursor: pointer;
-}
-
-.cell.clickable:hover {
-  background: #bbf7d0;
-}
-
-.turn-box {
-  margin-top: 12px;
-  font-size: 18px;
+  grid-row: 2;
+  grid-column: 2;
 }
 </style>
