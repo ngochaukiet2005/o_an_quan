@@ -274,6 +274,37 @@ export const handleJoinMatchmaking = (io, socket, playerName) => {
 // ===============================
 //  GẮN TOÀN BỘ SOCKET HANDLER
 // ===============================
+/**
+ * (C -> S) Người chơi yêu cầu state game khi vừa vào phòng
+ */
+export const handleRequestGameState = (io, socket) => {
+  // Tìm phòng dựa trên socket.id của người vừa hỏi
+  const room = findRoomBySocketId(socket.id); 
+  if (!room || !room.game) {
+    return socket.emit("error", { message: "Không tìm thấy phòng." });
+  }
+
+  const currentState = room.game.getState();
+  const currentPlayerSocket = room.players[currentState.currentPlayer - 1];
+
+  // Tạo payload tương tự 'game_start'
+  const stateData = {
+    players: room.players,
+    // Đảm bảo gửi đúng ID của người chơi tiếp theo
+    startingPlayerId: currentPlayerSocket ? currentPlayerSocket.id : null,
+    nextTurnPlayerId: currentPlayerSocket ? currentPlayerSocket.id : null,
+    board: currentState.board,
+    scores: currentState.scores,
+    debt: currentState.debt,
+    roomId: room.id,
+    gameMessage: currentState.gameMessage,
+  };
+
+  // Gửi state CẬP NHẬT cho CHỈ người vừa hỏi
+  // Chúng ta dùng "update_game_state" vì GameRoom.vue đã có sẵn hàm
+  // handleStateUpdate() để xử lý sự kiện này.
+  socket.emit("update_game_state", stateData);
+};
 export function setupSocketHandlers(io) {
   io.on("connection", (socket) => {
     console.log("✔ Client connected:", socket.id);

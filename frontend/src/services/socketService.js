@@ -65,6 +65,12 @@ function onError(cb) {
 function onGameStart(cb) {
   getSocket().on("game_start", cb);
 }
+// === THÊM HÀM NÀY ===
+function requestGameState() {
+  // Backend sẽ tự tìm phòng qua socket.id
+  getSocket().emit("game:request_state");
+}
+// ===================
 function makeMove(payload) {
   // payload sẽ có dạng { roomId, playerId, startIndex }
   getSocket().emit("make_move", payload);
@@ -98,6 +104,7 @@ export default {
   createRoom,
   joinRoom,
   quickPlay,
+  requestGameState,
   makeMove,
   onRoomCreated,
   onRoomJoined,

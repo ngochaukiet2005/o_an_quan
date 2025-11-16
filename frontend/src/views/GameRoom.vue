@@ -119,6 +119,7 @@ function handleStateUpdate(state) {
 }
 
 onMounted(() => {
+  socketService.requestGameState();
   // Trả về khi join thành công
   socketService.getSocket().on("room:joined", (data) => {
     console.log("✔ room:joined", data);
