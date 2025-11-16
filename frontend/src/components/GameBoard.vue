@@ -8,7 +8,7 @@
       >
         <div class="stone-summary-text">
           <div>Ô 0</div>
-          <div class="count">{{ boardState[0].stones }}</div>
+          <div class="count">{{ boardState[0]?.stones || 0 }}</div>
           <div class="type">QUAN</div>
         </div>
       </div>
@@ -21,7 +21,7 @@
       >
         <div class="stone-summary-text">
           <div>Ô {{ i }}</div>
-          <div class="count">{{ boardState[i].stones }}</div>
+          <div class="count">{{ boardState[i]?.stones || 0 }}</div>
           <div class="type">DÂN</div>
         </div>
       </div>
@@ -37,7 +37,7 @@
       >
         <div class="stone-summary-text">
           <div>Ô {{ 11 - i + 1 }}</div>
-          <div class="count">{{ boardState[11 - i + 1].stones }}</div>
+          <div class="count">{{ boardState[11 - i + 1]?.stones || 0 }}</div>
           <div class="type">DÂN</div>
         </div>
       </div>
@@ -48,7 +48,7 @@
       >
         <div class="stone-summary-text">
           <div>Ô 6</div>
-          <div class="count">{{ boardState[6].stones }}</div>
+          <div class="count">{{ boardState[6]?.stones || 0 }}</div>
           <div class="type">QUAN</div>
         </div>
       </div>
@@ -58,16 +58,22 @@
 
 <script setup>
 import { computed } from 'vue';
-import { useStore } from 'vuex';
+// 💡 SỬA LỖI: Import store tùy chỉnh, không phải 'vuex'
+import { store } from '../store.js';
+
 // import Stone from './Stone.vue'; // <-- Đã xóa, không cần hiển thị đá nữa
 
-const store = useStore();
-const boardState = computed(() => store.state.boardState);
-const activePit = computed(() => store.state.activePit);
+// 💡 SỬA LỖI: Truy cập state trực tiếp từ store đã import
+// Tên 'boardState' vẫn giữ nguyên, nhưng nó lấy dữ liệu từ 'store.board'
+const boardState = computed(() => store.board);
+const activePit = computed(() => store.activePit);
 
 const emit = defineEmits(['pit-click']);
 
 const onPitClick = (index) => {
+  // Thêm kiểm tra 'boardState.value[index]' để tránh lỗi khi board chưa kịp tải
+  if (!boardState.value[index]) return;
+
   // Chỉ emit nếu ô đó không phải ô quan rỗng
   if (boardState.value[index].isQuan && boardState.value[index].stones === 0) {
     console.log("Không thể chọn ô quan rỗng");
@@ -80,6 +86,9 @@ const onPitClick = (index) => {
   }
   emit('pit-click', index);
 };
+
+// Thêm một kiểm tra an toàn trong template
+// (Dùng 'boardState[i]?.stones || 0' để tránh lỗi nếu board rỗng)
 </script>
 
 <style scoped>

@@ -27,6 +27,9 @@ export const store = reactive({
   // Quản lý lượt
   nextTurnPlayerId: null,
   
+  // 💡 THÊM MỚI: Thêm trạng thái này
+  activePit: null, // Ô đang được chọn để tô sáng
+  
   // Thông báo
   gameMessage: "",
   errorMessage: "",
@@ -46,6 +49,10 @@ export function resetStore() {
   store.scores = { player1: { dan: 0, quan: 0 }, player2: { dan: 0, quan: 0 } };
   store.debt = { player1: 0, player2: 0 };
   store.nextTurnPlayerId = null;
+  
+  // 💡 THÊM MỚI: Reset cả activePit
+  store.activePit = null;
+  
   store.gameMessage = "";
   store.errorMessage = "";
 }
@@ -57,5 +64,10 @@ export function updateStateFromServer(newState) {
   store.debt = newState.debt;
   store.nextTurnPlayerId = newState.nextTurnPlayerId;
   store.gameMessage = newState.gameMessage;
+  
+  // 💡 THÊM MỚI: Cập nhật activePit từ server
+  // (Chúng ta sẽ cần đảm bảo server gửi trạng thái này)
+  store.activePit = newState.activePit; 
+  
   store.errorMessage = ""; // Xóa lỗi cũ khi có update mới
 }
