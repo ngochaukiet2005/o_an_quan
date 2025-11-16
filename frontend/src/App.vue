@@ -2,10 +2,12 @@
   <Navbar />
 
   <div class="app-content">
-    <transition name="fade-slide" mode="out-in">
-      <router-view />
-    </transition>
-  </div>
+    <router-view v-slot="{ Component }">
+      <transition name="fade-slide" mode="out-in">
+        <component :is="Component" />
+      </transition>
+    </router-view>
+    </div>
 </template>
 
 <script setup>

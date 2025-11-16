@@ -5,12 +5,18 @@ import GameRoom from "../views/GameRoom.vue";
 import About from "../views/About.vue";
 import Guide from "../views/Guide.vue";
 import Play from "../views/Play.vue";
+import Play from "../views/Play.vue";
 
 const routes = [
   {
     path: "/",
     name: "Home",
     component: Home,
+  },
+  {
+  path: "/play",
+    name: "Play",
+    component: Play,
   },
   {
     path: "/room/:roomId",
