@@ -49,15 +49,14 @@
 </template>
 
 <script setup>
-// Thêm 'computed'
-import { ref, onMounted, onBeforeUnmount, computed } from "vue";
-import { useRoute, useRouter } from "vue-router"; // Thêm useRouter
+// THÊM 'computed' và 'watch'
+import { ref, onMounted, onBeforeUnmount, computed, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import socketService from "../services/socketService";
 
 import ChatBox from "../components/ChatBox.vue";
 import PlayerInfo from "../components/PlayerInfo.vue";
 import GameBoard from "../components/GameBoard.vue";
-// Thêm 2 Modal
 import DirectionModal from "../components/DirectionModal.vue";
 import NotificationModal from "../components/NotificationModal.vue";
 
@@ -66,15 +65,19 @@ import NotificationModal from "../components/NotificationModal.vue";
 ================================= */
 
 const route = useRoute();
-const router = useRouter(); // Khởi tạo router
+const router = useRouter();
 
-const roomId = route.params.roomId;
-const playerName = route.query.playerName;
+// Lấy roomId và playerName một cách "phản ứng" (reactive)
+const roomId = computed(() => route.params.roomId);
+const playerName = computed(() => route.query.playerName);
 
-const playerId = ref(socketService.getSocket().id);
+// Lấy playerId từ service (SỬA LỖI 2 & 3)
+// Đây là một ref, nó sẽ tự động cập nhật khi socket kết nối lại
+const playerId = socketService.getSocketIdReactive();
+
 const playerSymbol = ref("");
 const players = ref([]);
-const board = ref([]); // Bắt đầu là mảng rỗng
+const board = ref([]);
 const currentTurnId = ref(null);
 const messages = ref([]);
 
@@ -86,97 +89,99 @@ const gameOverTitle = ref("");
 const gameOverMessage = ref("");
 
 /* ===============================
-        SOCKET LISTENERS
+        HÀM XỬ LÝ
 ================================= */
 
-/**
- * (HÀM MỚI)
- * Hàm này xử lý cập nhật state từ server.
- * Nó dùng cho cả 'game_start' và 'update_game_state'.
- */
+// (Hàm này giữ nguyên)
 function handleStateUpdate(state) {
-  console.log(
-    "📌 Nhận state (từ " +
-      (state.nextTurnPlayerId ? "update" : "game_start") +
-      "):",
-    state
-  );
+  console.log("📌 Nhận state:", state);
 
-  // 1. Cập nhật bàn cờ
   if (state.board) {
     board.value = state.board;
   }
 
-  // 2. Cập nhật người chơi và điểm số
-  if (state.players) {
-    players.value = state.players.map((p) => ({
-      ...p,
-      // Tính toán điểm số từ backend
-      score:
-        state.scores?.player1 || state.scores?.player2
-          ? p.symbol === "X"
-            ? state.scores.player1.quan * 5 + state.scores.player1.dan
-            : state.scores.player2.quan * 5 + state.scores.player2.dan
-          : 0,
-    }));
+  if (state.players && state.scores) {
+    players.value = state.players.map((p) => {
+      const scoreData = p.symbol === "X" ? state.scores.player1 : state.scores.player2;
+      return {
+        ...p,
+        score: scoreData ? (scoreData.quan * 5 + scoreData.dan) : 0,
+      };
+    });
   }
 
-  // 3. Cập nhật lượt đi
-  // (Backend gửi 'startingPlayerId' khi game_start,
-  //  và 'nextTurnPlayerId' khi update_game_state)
   currentTurnId.value = state.nextTurnPlayerId || state.startingPlayerId;
 
-  // 4. Cập nhật tin nhắn hệ thống
   if (state.gameMessage) {
     messages.value.push({ senderName: "Hệ thống", message: state.gameMessage });
   }
 }
 
-onMounted(() => {
-  socketService.requestGameState();
-  // Trả về khi join thành công
-  socketService.getSocket().on("room:joined", (data) => {
-    console.log("✔ room:joined", data);
-    playerId.value = data.playerId;
-    playerSymbol.value = data.playerSymbol;
-  });
+// Tách các hàm xử lý sự kiện ra riêng
+const onChatReceive = (msg) => {
+  messages.value.push(msg);
+};
 
-  // === SỬA LỖI CHÍNH LÀ Ở ĐÂY ===
-  // 1. Lắng nghe trạng thái BAN ĐẦU
+const onPlayerJoined = (data) => {
+  messages.value.push({
+    senderName: "Hệ thống",
+    message: `${data.name} đã vào phòng.`,
+  });
+};
+
+const onError = (err) => {
+  alert(err.message);
+  console.error(err.message);
+};
+
+// Hàm dọn dẹp state (SỬA LỖI 1)
+function resetState() {
+  board.value = [];
+  players.value = [];
+  currentTurnId.value = null;
+  messages.value = [];
+  playerSymbol.value = "";
+  showDirectionModal.value = false;
+  selectedCellIndex.value = null;
+  showGameOverModal.value = false;
+}
+
+// Hàm cài đặt listener
+function setupSocketListeners() {
+  socketService.offAll(); // Xóa listener cũ trước
   socketService.getSocket().on("game_start", handleStateUpdate);
-  // 2. Lắng nghe trạng thái CẬP NHẬT
   socketService.getSocket().on("update_game_state", handleStateUpdate);
-  // ===============================
-
-  // Lắng nghe game over
   socketService.getSocket().on("game_over", onGameOver);
+  socketService.getSocket().on("chat:receive", onChatReceive);
+  socketService.getSocket().on("room:player-joined", onPlayerJoined);
+  socketService.getSocket().on("error", onError);
+}
 
-  // Chat message mới
-  socketService.getSocket().on("chat:receive", (msg) => {
-    messages.value.push(msg);
-  });
+/* ===============================
+        VÒNG ĐỜI (LIFECYCLE)
+================================= */
 
-  // Người chơi mới vào phòng
-  socketService.getSocket().on("room:player-joined", (data) => {
-    messages.value.push({
-      senderName: "Hệ thống",
-      message: `${data.name} đã vào phòng.`,
-    });
-    // Cập nhật lại danh sách người chơi nếu cần
-    if (players.value.length < 2) {
-      // (Backend nên gửi lại list player trong 'game_start' hoặc 'update_game_state')
-    }
-  });
-
-  // Lỗi từ server
-  socketService.getSocket().on("error", (err) => {
-    alert(err.message);
-  });
+onMounted(() => {
+  resetState(); // Dọn dẹp state cũ
+  setupSocketListeners(); // Gắn listener mới
+  socketService.requestGameState(); // Yêu cầu state của phòng
 });
 
 onBeforeUnmount(() => {
   socketService.offAll();
 });
+
+// SỬA LỖI 1: Theo dõi khi roomId thay đổi
+// (Khi điều hướng từ /room/A -> /room/B)
+watch(roomId, (newRoomId, oldRoomId) => {
+  if (newRoomId && newRoomId !== oldRoomId) {
+    console.log(`Đổi phòng: ${oldRoomId} -> ${newRoomId}. Đang reset...`);
+    resetState();
+    setupSocketListeners();
+    socketService.requestGameState();
+  }
+});
+
 
 /* ===============================
         USER ACTIONS
@@ -184,15 +189,10 @@ onBeforeUnmount(() => {
 
 // 1. Nhấp vào ô cờ (từ GameBoard.vue)
 function handleMove(index) {
-  // Kiểm tra có đúng lượt mình không
   if (currentTurnId.value !== playerId.value) {
     alert("Chưa đến lượt của bạn!");
     return;
   }
-
-  // (Bạn có thể thêm kiểm tra ô hợp lệ ở đây)
-
-  // Mở modal chọn hướng
   selectedCellIndex.value = index;
   showDirectionModal.value = true;
 }
@@ -203,29 +203,29 @@ function onDirectionChosen(direction) {
   if (selectedCellIndex.value === null || !direction) {
     return;
   }
-
-  // Gửi nước đi lên server
   socketService.makeMove({
     cellIndex: selectedCellIndex.value,
-    direction: direction, // 'left' hoặc 'right'
+    direction: direction,
   });
-
   selectedCellIndex.value = null;
 }
 
 // 3. Xử lý Game Over (từ server)
 const onGameOver = (data) => {
   console.log("Game Over:", data);
-
   let winnerName = "Hòa!";
+  
+  // Lấy tên người chơi một cách an toàn
   const p1 = players.value.find((p) => p.symbol === "X");
   const p2 = players.value.find((p) => p.symbol === "O");
+  const p1Name = p1 ? p1.name : "Người chơi 1";
+  const p2Name = p2 ? p2.name : "Người chơi 2";
 
-  if (p1 && data.winner === p1.id) winnerName = `${p1.name} thắng!`;
-  if (p2 && data.winner === p2.id) winnerName = `${p2.name} thắng!`;
+  if (p1 && data.winner === p1.id) winnerName = `${p1Name} thắng!`;
+  if (p2 && data.winner === p2.id) winnerName = `${p2Name} thắng!`;
 
   gameOverTitle.value = winnerName;
-  gameOverMessage.value = `${data.gameMessage} | Điểm cuối: P1 (${data.finalScores.player1}) - P2 (${data.finalScores.player2})`;
+  gameOverMessage.value = `${data.gameMessage} | Điểm cuối: ${p1Name} (${data.finalScores.player1}) - ${p2Name} (${data.finalScores.player2})`;
   showGameOverModal.value = true;
 };
 
@@ -236,22 +236,20 @@ const goToHome = () => {
 
 // 5. Gửi tin nhắn (từ ChatBox.vue)
 function sendMessage(text) {
-  socketService.sendMessage(roomId, playerName, text);
+  // Đảm bảo playerName là giá trị (không phải computed object)
+  socketService.sendMessage(roomId.value, playerName.value, text);
 }
 </script>
 
 <style scoped>
 .room-page {
-  /* Tăng max-width để chứa 2 cột */
-  max-width: 1300px;
-  /* Giảm margin-top để đẹp hơn */
-  margin: 30px auto 30px;
+  max-width: 1300px; /* Tăng độ rộng để chứa 2 cột */
+  margin: 30px auto 30px; /* Giảm lề trên */
   padding: 20px;
   background: #f9fafb;
   border-radius: 12px;
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
 }
-
 .room-header {
   border-bottom: 1px solid #e5e7eb;
   padding-bottom: 10px;
@@ -266,35 +264,31 @@ function sendMessage(text) {
   display: flex;
   flex-direction: row;
   gap: 24px;
-  align-items: flex-start; /* Căn các cột lên trên cùng */
+  align-items: flex-start;
 }
 
 .main-column {
   flex: 3; /* Cột game chiếm 3 phần */
-  min-width: 0; /* Cần thiết cho flexbox */
+  min-width: 0;
 }
 
 .side-column {
   flex: 1; /* Cột chat chiếm 1 phần */
-  min-width: 300px; /* Đặt độ rộng tối thiểu cho chat */
+  min-width: 300px;
   
-  /* Làm cho cột chat "dính" lại khi cuộn */
+  /* Cố định cột chat khi cuộn */
   position: sticky;
-  top: 20px;
+  top: 90px; /* 70px (navbar) + 20px (padding) */
 }
 /* =================== */
-
 
 .player-box {
   margin-bottom: 20px;
 }
-
 .chat-box {
-  /* Xóa margin-top cũ vì đã có .side-column */
-  margin-top: 0;
+  margin-top: 0; /* Xóa lề cũ */
   width: 100%;
 }
-
 .loading-board {
   padding: 40px;
   text-align: center;

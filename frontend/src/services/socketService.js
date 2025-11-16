@@ -1,9 +1,11 @@
 // src/services/socketService.js
 import { io } from "socket.io-client";
+import { ref } from "vue"; // <-- THÊM DÒNG NÀY
 
 const SOCKET_URL = "http://localhost:3000";
 
 let socket = null;
+const socketId = ref(null); // <-- TẠO MỘT REF CHO SOCKET ID
 
 function connect() {
   if (!socket) {
@@ -13,10 +15,12 @@ function connect() {
 
     socket.on("connect", () => {
       console.log("🔌 Connected:", socket.id);
+      socketId.value = socket.id; // <-- CẬP NHẬT REF KHI KẾT NỐI
     });
 
     socket.on("disconnect", () => {
       console.log("❌ Disconnected");
+      socketId.value = null; // <-- XÓA REF KHI MẤT KẾT NỐI
     });
   }
 
@@ -27,9 +31,15 @@ function getSocket() {
   return socket ?? connect();
 }
 
+// === THÊM HÀM MỚI NÀY ===
+function getSocketIdReactive() {
+  connect(); // Đảm bảo socket đã được khởi tạo
+  return socketId;
+}
+// =======================
+
 /* ================= EMIT ================= */
 function quickPlay(playerName) {
-  // Gửi { name: ... } thay vì { playerName: ... }
   getSocket().emit("room:quickplay", { name: playerName });
 }
 function createRoom(playerName) {
@@ -59,44 +69,43 @@ function onPlayerJoined(cb) {
 }
 
 function onError(cb) {
-  // FIX: backend emit "error"
   getSocket().on("error", cb);
 }
 function onGameStart(cb) {
   getSocket().on("game_start", cb);
 }
-// === THÊM HÀM NÀY ===
+
 function requestGameState() {
-  // Backend sẽ tự tìm phòng qua socket.id
   getSocket().emit("game:request_state");
 }
-// ===================
+
 function makeMove(payload) {
-  // payload sẽ có dạng { roomId, playerId, startIndex }
   getSocket().emit("make_move", payload);
 }
 function sendMessage(roomId, playerName, text) {
-  // Thêm playerName
   getSocket().emit("chat:send", {
     roomId,
     message: text,
-    senderName: playerName, // <--- Gửi kèm tên
+    senderName: playerName,
   });
 }
 
-// Thêm hàm này
 function onNewMessage(cb) {
-  getSocket().on("chat:receive", cb); // <--- Lắng nghe sự kiện "chat:receive"
+  getSocket().on("chat:receive", cb);
 }
+
+// Sửa hàm offAll để xóa đúng các listener
 function offAll() {
   if (!socket) return;
-  socket.off("chat:receive");
-
-  socket.off("room:created");
-  socket.off("room:joined");
+  socket.off("game_start");
   socket.off("update_game_state");
+  socket.off("game_over");
+  socket.off("chat:receive");
   socket.off("room:player-joined");
-  socket.off("error"); // FIX
+  socket.off("error");
+  
+  // KHÔNG off "room:created" và "room:joined"
+  // vì chúng được quản lý bởi Play.vue
 }
 
 export default {
@@ -116,4 +125,5 @@ export default {
   onGameStart,
   offAll,
   getSocket,
+  getSocketIdReactive, // <-- XUẤT (EXPORT) HÀM MỚI
 };
