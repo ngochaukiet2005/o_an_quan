@@ -1,40 +1,25 @@
-import os from "os";
+// backend/src/server.js
 import express from "express";
 import http from "http";
-import cors from "cors";
 import { Server } from "socket.io";
-import setupSocketHandlers from "./gameManager.js";   // ← đúng
-
-function getLocalIP() {
-  const nets = os.networkInterfaces();
-  for (const name of Object.keys(nets)) {
-    for (const net of nets[name]) {
-      if (net.family === "IPv4" && !net.internal) return net.address;
-    }
-  }
-  return "127.0.0.1";
-}
-
-const HOST = getLocalIP();
-const PORT = 3000;
+import cors from "cors";
+import { setupSocketHandlers } from "./gameManager.js"; // <-- CHỈ IMPORT TRÌNH QUẢN LÝ MỚI
 
 const app = express();
-app.use(cors());
+app.use(cors()); // Cho phép cross-origin
 
 const server = http.createServer(app);
-
 const io = new Server(server, {
-  cors: { origin: "*" }
+  cors: {
+    origin: "*", // Cho phép tất cả
+    methods: ["GET", "POST"],
+  },
 });
 
-// API optional
-app.get("/server-info", (req, res) => {
-  res.json({ host: HOST, port: PORT });
-});
-
-// Kích hoạt Socket IO
+// Gắn tất cả các trình xử lý sự kiện (create_room, join_room, make_move...)
 setupSocketHandlers(io);
 
-server.listen(PORT, "0.0.0.0", () => {
-  console.log(`Backend chạy tại: http://${HOST}:${PORT}`);
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`✔ Server Ô Ăn Quan đang chạy tại http://localhost:${PORT}`);
 });
