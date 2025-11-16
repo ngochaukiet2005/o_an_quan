@@ -1,23 +1,40 @@
-<script setup>
-// 1. Chỉ cần import RouterView
-import { RouterView } from "vue-router";
-</script>
-
 <template>
-  <RouterView />
+  <Navbar />
+
+  <div class="app-content">
+    <transition name="fade-slide" mode="out-in">
+      <router-view />
+    </transition>
+  </div>
 </template>
 
+<script setup>
+import Navbar from "./components/Navbar.vue";
+</script>
+
 <style>
-/* 3. Xóa "scoped" để các style này áp dụng toàn cục.
-  Đây là nơi tốt để đặt các style chung 
-  cho toàn bộ ứng dụng (ví dụ: font chữ, màu nền...)
-*/
-body {
-  font-family: Avenir, Helvetica, Arial, sans-serif;
-  color: #2c3e50;
-  background-color: #f4f4f5;
+body,
+html {
   margin: 0;
-  padding: 10px;
-  text-align: center;
+  font-family: "Inter", sans-serif;
+}
+
+/* đảm bảo nội dung nằm dưới navbar */
+.app-content {
+  padding-top: 70px;
+}
+
+/* Transition */
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition: 0.35s ease;
+}
+.fade-slide-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
+}
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
 }
 </style>

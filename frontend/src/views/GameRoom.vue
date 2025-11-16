@@ -1,217 +1,140 @@
 <template>
-  <div class="game-room">
-    <PlayerInfo 
-      :player="player2"
-      :score="player2Score"
-      :debt="store.debt.player2"
-      :isMyTurn="isPlayer2Turn"
+  <div class="room-page">
+    <h1>Phòng: {{ roomId }}</h1>
+    <p>
+      Bạn là: <strong>{{ playerName }}</strong>
+    </p>
+
+    <!-- ===== PLAYER LIST ===== -->
+    <PlayerInfo
+      :players="players"
+      :currentTurnId="currentTurnId"
+      class="player-box"
     />
 
+    <!-- ===== GAME BOARD ===== -->
     <GameBoard
-      :board="store.board"
-      :myPlayerNumber="store.myPlayerNumber"
-      :isMyTurn="isMyTurn"
-      @cell-click="onCellClick"
+      v-if="board.length"
+      :board="board"
+      :players="players"
+      :currentTurnId="currentTurnId"
+      :playerId="playerId"
+      @move="handleMove"
     />
 
-    <PlayerInfo 
-      :player="player1"
-      :score="player1Score"
-      :debt="store.debt.player1"
-      :isMyTurn="isPlayer1Turn"
-    />
-
-    <div class="game-messages">
-      <p v-if="store.gameMessage" class="message">{{ store.gameMessage }}</p>
-      <p v-if="store.errorMessage" class="error">{{ store.errorMessage }}</p>
-      <button @click="leaveRoom">Rời phòng</button>
-    </div>
-
-    <DirectionModal
-      :show="showDirectionModal"
-      @choose="onDirectionChosen"
-      @close="showDirectionModal = false"
-    />
-    
-    <NotificationModal
-      :show="showGameOverModal"
-      :title="gameOverTitle"
-      :message="gameOverMessage"
-      @close="goToHome"
-    />
-
+    <!-- ===== CHAT ===== -->
+    <ChatBox :messages="messages" @send="sendMessage" class="chat-box" />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { store, updateStateFromServer, resetStore } from '../store';
-import { emit, on, off } from '../services/socketService';
+import { ref, onMounted, onBeforeUnmount } from "vue";
+import { useRoute } from "vue-router";
+import socketService from "../services/socketService";
 
-// Import components
-import GameBoard from '../components/GameBoard.vue';
-import PlayerInfo from '../components/PlayerInfo.vue';
-import DirectionModal from '../components/DirectionModal.vue';
-import NotificationModal from '../components/NotificationModal.vue';
+import ChatBox from "../components/ChatBox.vue";
+import PlayerInfo from "../components/PlayerInfo.vue";
+import GameBoard from "../components/GameBoard.vue";
 
-const router = useRouter();
+/* ===============================
+            STATE
+================================= */
 
-// --- Trạng thái local cho UI (Modals) ---
-const showDirectionModal = ref(false);
-const selectedCellIndex = ref(null);
-const showGameOverModal = ref(false);
-const gameOverTitle = ref('');
-const gameOverMessage = ref('');
+const route = useRoute();
 
-// --- Dữ liệu Computed (Lấy từ store) ---
-const isMyTurn = computed(() => store.nextTurnPlayerId === store.myPlayerId);
-const isPlayer1Turn = computed(() => store.players[0] && store.nextTurnPlayerId === store.players[0].id);
-const isPlayer2Turn = computed(() => store.players[1] && store.nextTurnPlayerId === store.players[1].id);
+const roomId = route.params.roomId;
+const playerName = route.query.playerName;
 
-// Định nghĩa P1 và P2 (P1 luôn là index 0, P2 là index 1)
-const player1 = computed(() => store.players[0] || { name: 'Player 1' });
-const player2 = computed(() => store.players[1] || { name: 'Player 2' });
+const playerId = ref("");
+const playerSymbol = ref("");
 
-const player1Score = computed(() => store.scores.player1);
-const player2Score = computed(() => store.scores.player2);
+const players = ref([]);
+const board = ref([]);
 
-// --- Xử lý sự kiện Socket ---
+const currentTurnId = ref("");
 
-const onUpdateState = (newState) => {
-  console.log('Nhận update state:', newState);
-  updateStateFromServer(newState);
-};
+const messages = ref([]);
 
-const onInvalidMove = (data) => {
-  console.warn('Nước đi không hợp lệ:', data.message);
-  store.errorMessage = data.message;
-};
-
-const onGameOver = (data) => {
-  console.log('Game Over:', data);
-  
-  // Cập nhật state lần cuối
-  if(data.finalState) {
-    updateStateFromServer(data.finalState);
-  }
-
-  // Hiển thị modal
-  let winnerName = 'Hòa!';
-  if (data.winner === player1.value.id) winnerName = `${player1.value.name} thắng!`;
-  if (data.winner === player2.value.id) winnerName = `${player2.value.name} thắng!`;
-  
-  gameOverTitle.value = winnerName;
-  gameOverMessage.value = `${data.gameMessage} | Điểm cuối: P1 (${data.finalScores.player1}) - P2 (${data.finalScores.player2})`;
-  showGameOverModal.value = true;
-};
-
-const onKicked = (data) => {
-  // Xử lý khi đối thủ rời phòng
-  alert(data.message);
-  goToHome();
-};
-
-// --- Vòng đời Component ---
+/* ===============================
+        SOCKET HANDLERS
+================================= */
 
 onMounted(() => {
-  if (!store.roomId) {
-    // Nếu F5 trang hoặc vào trực tiếp, đá về Home
-    router.push('/');
-    return;
-  }
-  
-  // Lắng nghe các sự kiện
-  on('update_game_state', onUpdateState);
-  on('invalid_move', onInvalidMove);
-  on('game_over', onGameOver);
-  on('kicked_to_menu', onKicked);
-});
+  console.log("▶ Join room:", roomId, "as", playerName);
 
-onUnmounted(() => {
-  // Hủy lắng nghe
-  off('update_game_state', onUpdateState);
-  off('invalid_move', onInvalidMove);
-  off('game_over', onGameOver);
-  off('kicked_to_menu', onKicked);
-});
-
-// --- Hành động của người dùng ---
-
-const onCellClick = (index) => {
-  if (!isMyTurn.value) {
-    store.errorMessage = "Không phải lượt của bạn!";
-    return;
-  }
-
-  // Logic kiểm tra ô hợp lệ (dan > 0, quan = 0) nằm ở server, 
-  // nhưng ta có thể kiểm tra sơ bộ ở client để tránh gửi yêu cầu thừa
-  const cell = store.board[index];
-  if (cell.dan === 0 || cell.quan > 0) {
-     store.errorMessage = "Không thể bốc từ ô này (Phải có dân và không có quan).";
-     return;
-  }
-  
-  store.errorMessage = "";
-  selectedCellIndex.value = index;
-  showDirectionModal.value = true;
-};
-
-const onDirectionChosen = (direction) => {
-  showDirectionModal.value = false;
-  if (selectedCellIndex.value === null || !direction) {
-    return;
-  }
-
-  // GỬI NƯỚC ĐI LÊN SERVER
-  emit('make_move', {
-    cellIndex: selectedCellIndex.value,
-    direction: direction, // 'left' hoặc 'right'
+  // Gửi join_room (đúng theo backend của bạn)
+  socketService.getSocket().emit("room:join", {
+    roomId,
+    playerName,
   });
 
-  selectedCellIndex.value = null;
-};
+  // Backend trả về khi join thành công
+  socketService.getSocket().on("room:joined", (data) => {
+    console.log("✔ room:joined", data);
+    playerId.value = data.playerId;
+    playerSymbol.value = data.playerSymbol;
+  });
 
-const leaveRoom = () => {
-  if (confirm('Bạn có chắc muốn rời phòng? Bạn sẽ bị xử thua.')) {
-    emit('leave_room', {});
-    goToHome();
-  }
-};
+  // Backend gửi state game
+  socketService.getSocket().on("update_game_state", (state) => {
+    console.log("📌 update_game_state", state);
 
-const goToHome = () => {
-  resetStore();
-  router.push('/');
-};
+    board.value = state.board;
+    players.value = state.players;
+    currentTurnId.value = state.currentTurnId;
+  });
 
+  // Chat message mới
+  socketService.getSocket().on("chat:receive", (msg) => {
+    messages.value.push(msg);
+  });
+
+  // Người chơi mới vào phòng
+  socketService.getSocket().on("room:player-joined", (data) => {
+    messages.value.push({
+      senderName: "Hệ thống",
+      message: `${data.name} đã vào phòng.`,
+    });
+  });
+
+  socketService.getSocket().on("error", (err) => {
+    alert(err.message);
+  });
+});
+
+onBeforeUnmount(() => {
+  socketService.offAll();
+});
+
+/* ===============================
+        USER ACTIONS
+================================= */
+
+// gửi nước đi
+function handleMove(index) {
+  socketService.makeMove({
+    roomId,
+    playerId: playerId.value,
+    startIndex: index,
+  });
+}
+
+// gửi chat
+function sendMessage(text) {
+  socketService.sendMessage(roomId, playerName.value, text);
+}
 </script>
 
 <style scoped>
-.game-room {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 20px;
-  width: 100%;
+.room-page {
+  padding: 20px 30px;
 }
-.game-messages {
-  margin-top: 20px;
-  text-align: center;
+
+.player-box {
+  margin-bottom: 20px;
 }
-.message {
-  font-size: 1.2em;
-  font-weight: bold;
-  color: #333;
-}
-.error {
-  font-size: 1.1em;
-  color: #D32F2F;
-  font-weight: bold;
-}
-button {
-  margin-top: 10px;
-  padding: 8px 15px;
-  font-size: 16px;
-  cursor: pointer;
+
+.chat-box {
+  margin-top: 30px;
 }
 </style>
