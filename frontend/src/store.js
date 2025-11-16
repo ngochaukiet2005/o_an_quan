@@ -1,5 +1,7 @@
 // frontend/src/store.js
 import { reactive } from "vue";
+// 💡 SỬA LỖI: Thêm dòng import này
+import { getSocket } from "./services/socketService";
 
 // Đây là "nguồn chân lý" cho toàn bộ UI
 export const store = reactive({
@@ -34,7 +36,11 @@ export const store = reactive({
 export function resetStore() {
   store.roomId = null;
   store.players = [];
-  store.myPlayerId = getSocket().id || null; // Giữ lại ID của mình
+  
+  // 💡 SỬA LỖI: Bây giờ hàm getSocket() đã được định nghĩa
+  // (Chúng ta thêm kiểm tra 'getSocket()' để tránh lỗi nếu socket chưa sẵn sàng)
+  store.myPlayerId = getSocket ? (getSocket().id || null) : null; 
+  
   store.myPlayerNumber = null;
   store.board = [];
   store.scores = { player1: { dan: 0, quan: 0 }, player2: { dan: 0, quan: 0 } };
