@@ -1,11 +1,11 @@
 // src/services/socketService.js
 import { io } from "socket.io-client";
-import { ref } from "vue"; // <-- THÊM DÒNG NÀY
+import { ref } from "vue"; // <-- Đã thêm ở lần sửa trước
 
 const SOCKET_URL = "http://localhost:3000";
 
 let socket = null;
-const socketId = ref(null); // <-- TẠO MỘT REF CHO SOCKET ID
+const socketId = ref(null); // <-- Đã thêm ở lần sửa trước
 
 function connect() {
   if (!socket) {
@@ -15,12 +15,12 @@ function connect() {
 
     socket.on("connect", () => {
       console.log("🔌 Connected:", socket.id);
-      socketId.value = socket.id; // <-- CẬP NHẬT REF KHI KẾT NỐI
+      socketId.value = socket.id; // <-- Đã thêm ở lần sửa trước
     });
 
     socket.on("disconnect", () => {
       console.log("❌ Disconnected");
-      socketId.value = null; // <-- XÓA REF KHI MẤT KẾT NỐI
+      socketId.value = null; // <-- Đã thêm ở lần sửa trước
     });
   }
 
@@ -31,12 +31,10 @@ function getSocket() {
   return socket ?? connect();
 }
 
-// === THÊM HÀM MỚI NÀY ===
 function getSocketIdReactive() {
-  connect(); // Đảm bảo socket đã được khởi tạo
+  connect(); 
   return socketId;
 }
-// =======================
 
 /* ================= EMIT ================= */
 function quickPlay(playerName) {
@@ -49,6 +47,13 @@ function createRoom(playerName) {
 function joinRoom(roomId, playerName) {
   getSocket().emit("room:join", { roomId, name: playerName });
 }
+
+// === THÊM HÀM MỚI NÀY ===
+function leaveRoom() {
+  // Gửi sự kiện 'leave_room' mà backend đang lắng nghe
+  getSocket().emit("leave_room");
+}
+// =======================
 
 /* ================= ON ================= */
 
@@ -94,7 +99,6 @@ function onNewMessage(cb) {
   getSocket().on("chat:receive", cb);
 }
 
-// Sửa hàm offAll để xóa đúng các listener
 function offAll() {
   if (!socket) return;
   socket.off("game_start");
@@ -103,9 +107,7 @@ function offAll() {
   socket.off("chat:receive");
   socket.off("room:player-joined");
   socket.off("error");
-  
-  // KHÔNG off "room:created" và "room:joined"
-  // vì chúng được quản lý bởi Play.vue
+  socket.off("kicked_to_menu"); // <-- (Tùy chọn) Thêm cả sự kiện kick
 }
 
 export default {
@@ -125,5 +127,6 @@ export default {
   onGameStart,
   offAll,
   getSocket,
-  getSocketIdReactive, // <-- XUẤT (EXPORT) HÀM MỚI
+  getSocketIdReactive,
+  leaveRoom, // <-- XUẤT (EXPORT) HÀM MỚI
 };
