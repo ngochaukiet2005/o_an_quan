@@ -4,18 +4,15 @@
     <div class="row top-row">
       <div
         v-for="i in 5"
-        :key="playerViewClass === 'p1-view' ? 11 - i + 1 : i"
+        :key="11 - i + 1"
         class="pit square-pit"
-        :class="{ 
-          active: activePit === (playerViewClass === 'p1-view' ? 11 - i + 1 : i), 
-          'clickable': isClickable(playerViewClass === 'p1-view' ? 11 - i + 1 : i) 
-        }"
-        @click="() => onPitClick(playerViewClass === 'p1-view' ? 11 - i + 1 : i)"
+        :class="{ active: activePit === (11 - i + 1), 'clickable': isClickable(11 - i + 1) }"
+        @click="() => onPitClick(11 - i + 1)"
       >
         <div class="stone-summary-text">
-          <div class="label">Ô {{ playerViewClass === 'p1-view' ? 11 - i + 1 : i }}</div>
+          <div class="label">Ô {{ 11 - i + 1 }}</div>
           <div class="counts">
-            <span class="dan-count">D: {{ boardState[playerViewClass === 'p1-view' ? 11 - i + 1 : i]?.dan || 0 }}</span>
+            <span class="dan-count">D: {{ boardState[11 - i + 1]?.dan || 0 }}</span>
           </div>
         </div>
       </div>
@@ -54,18 +51,15 @@
     <div class="row bottom-row">
       <div
         v-for="i in 5"
-        :key="playerViewClass === 'p1-view' ? i : 11 - i + 1"
+        :key="i"
         class="pit square-pit"
-        :class="{ 
-          active: activePit === (playerViewClass === 'p1-view' ? i : 11 - i + 1), 
-          'clickable': isClickable(playerViewClass === 'p1-view' ? i : 11 - i + 1) 
-        }"
-        @click="() => onPitClick(playerViewClass === 'p1-view' ? i : 11 - i + 1)"
+        :class="{ active: activePit === i, 'clickable': isClickable(i) }"
+        @click="() => onPitClick(i)"
       >
         <div class="stone-summary-text">
-          <div class="label">Ô {{ playerViewClass === 'p1-view' ? i : 11 - i + 1 }}</div>
+          <div class="label">Ô {{ i }}</div>
           <div class="counts">
-            <span class="dan-count">D: {{ boardState[playerViewClass === 'p1-view' ? i : 11 - i + 1]?.dan || 0 }}</span>
+            <span class="dan-count">D: {{ boardState[i]?.dan || 0 }}</span>
           </div>
         </div>
       </div>
@@ -82,9 +76,7 @@ const activePit = computed(() => store.activePit);
 const isMyTurn = computed(() => store.nextTurnPlayerId === store.myPlayerId);
 const myPlayerNumber = computed(() => store.myPlayerNumber);
 
-// XOAY BÀN CỜ (QUAN TRỌNG)
-// Nếu tôi là P1, tôi xem bình thường.
-// Nếu tôi là P2, bàn cờ sẽ xoay 180 độ.
+// Thêm class 'p2-view' nếu là Người Chơi 2
 const playerViewClass = computed(() => {
   return myPlayerNumber.value === 2 ? 'p2-view' : 'p1-view';
 });
@@ -145,6 +137,7 @@ const onPitClick = (index) => {
   border-radius: 20px;
   padding: 10px;
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+  transition: transform 0.5s; /* Thêm hiệu ứng xoay */
 }
 
 .row {
@@ -153,18 +146,22 @@ const onPitClick = (index) => {
 }
 
 /* --- Bố cục cho P1 (Mặc định) --- */
-/* SỬA LỖI: Đổi 'row-reverse' thành 'row' 
-  để hiển thị đúng thứ tự 11, 10, 9, 8, 7 
-*/
-.p1-view .top-row { flex-direction: row; } /* Ô 11 -> 7 */
-.p1-view .quan-row { flex-direction: row; }      /* Quan 0 (trái), Quan 6 (phải) */
-.p1-view .bottom-row { flex-direction: row; }    /* Ô 1 -> 5 */
+.top-row { flex-direction: row; } /* Ô 11 -> 7 */
+.quan-row { flex-direction: row; }      /* Quan 0 (trái), Quan 6 (phải) */
+.bottom-row { flex-direction: row; }    /* Ô 1 -> 5 */
 
-/* --- Bố cục cho P2 (Xoay 180 độ) --- */
-.p2-view { flex-direction: column-reverse; } /* Đảo hàng trên và dưới */
-.p2-view .top-row { flex-direction: row; } /* (Bây giờ là hàng dưới) Ô 1 -> 5 */
-.p2-view .quan-row { flex-direction: row-reverse; } /* Quan 6 (trái), Quan 0 (phải) */
-.p2-view .bottom-row { flex-direction: row; } /* (Bây giờ là hàng trên) Ô 11 -> 7 */
+
+/* 💡 SỬA LỖI: Bố cục cho P2 (Xoay 180 độ) */
+.p2-view {
+  /* Xoay toàn bộ bàn cờ */
+  transform: rotate(180deg);
+}
+
+.p2-view .stone-summary-text {
+  /* Xoay ngược chữ lại để P2 đọc được */
+  transform: rotate(180deg);
+}
+/* --- Hết phần sửa lỗi --- */
 
 
 .pit {
@@ -204,7 +201,7 @@ const onPitClick = (index) => {
   width: 250px;
   height: 120px;
   border-radius: 60px; /* Hình bầu dục */
-  margin: 5px 20px; /* Tách 2 ô quan xa nhau hơn */
+  margin: 5px 20px;
 }
 
 /* --- Hiển thị Dân / Quan --- */
