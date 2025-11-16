@@ -9,9 +9,9 @@ const routes = [
     component: Home,
   },
   {
-    path: "/game/:roomId", // URL sẽ có dạng /game/abc12
-    name: "GameRoom",
-    component: GameRoom,
+      path: '/game-room', // <--- SỬA LẠI
+      name: 'game-room', // <--- SỬA LẠI
+      component: () => import('../views/GameRoom.vue')
   },
 ];
 
