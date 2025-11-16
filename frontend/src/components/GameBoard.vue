@@ -179,6 +179,7 @@ function handleClick(index) {
 }
 .cell.clickable:hover {
   background-color: #f7f3e8;
+  /* Áp dụng transform ở đây cho P1 (mặc định). */
   transform: translateY(-2px);
 }
 
@@ -238,6 +239,20 @@ function handleClick(index) {
 .p2-view .cell {
   /* Xoay ngược chữ và các-thành-phần-con lại để đọc được */
   transform: rotate(180deg);
+}
+/* === BỔ SUNG KHỐI NÀY ĐỂ SỬA LỖI XOAY === */
+.p2-view .cell.clickable:hover {
+  /*
+    Vì .p2-view .cell đã xoay 180 độ,
+    'translateY(-2px)' (di chuyển lên) sẽ bị lật thành 'di chuyển xuống'.
+    Vì vậy, chúng ta phải dùng 'translateY(2px)' để nó di chuyển 'lên'
+    (so với màn hình) khi ở chế độ P2.
+  */
+  transform: rotate(180deg) translateY(2px);
+  /* Chúng ta cũng cần giữ lại background-color 
+    vì quy tắc CSS gốc bị ghi đè.
+  */
+  background-color: #f7f3e8;
 }
 /* ================================= */
 </style>
