@@ -26,7 +26,7 @@ export const handleCreateRoom = (socket, playerName) => {
   };
   rooms.set(roomId, room);
   socket.join(roomId);
-  socket.emit("room_created", {
+  socket.emit("room:created", {
     roomId: roomId,
     playerId: player1.id,
     playerSymbol: player1.symbol,
@@ -47,7 +47,15 @@ export const handleJoinRoom = (io, socket, roomId, playerName) => {
   room.nextTurnPlayerId = room.players[0].id; // P1 (X) đi trước
 
   socket.join(roomId);
-
+  socket.emit("room:joined", {
+    roomId: roomId,
+    playerId: player2.id,
+    playerSymbol: player2.symbol,
+  });
+  socket.to(roomId).emit("room:player-joined", {
+    id: player2.id,
+    name: player2.name,
+  });
   // Lấy trạng thái ban đầu từ thực thể game
   const initialState = room.game.getState(); // <-- DÙNG CLASS MỚI
 
@@ -92,7 +100,7 @@ export const handleMakeMove = (io, socket, payload) => {
   // 3. Kiểm tra xem nước đi có hợp lệ không (dựa trên tin nhắn trả về)
   // Đây chính là lý do bạn gặp lỗi "Không Hợp Lệ"
   if (newState.gameMessage === "Nước đi không hợp lệ.") {
-    return socket.emit("invalid_move", {
+    return socket.emit("error", {
       message: "Nước đi không hợp lệ (Không được bốc ô trống hoặc ô Quan).",
     });
   }
@@ -182,7 +190,7 @@ export const handleSendMessage = (io, socket, payload) => {
   // ... (giữ nguyên code)
   if (!room) return;
   const player = room.players.find((p) => p.id === socket.id);
-  io.to(room.id).emit("new_message", {
+  io.to(room.id).emit("chat:receive", {
     senderName: player ? player.name : "Người xem",
     message: payload.message,
   });
@@ -259,6 +267,8 @@ export const handleJoinMatchmaking = (io, socket, playerName) => {
       roomId: roomId,
     };
     io.to(roomId).emit("game_start", startData);
+    socket1.emit("room:player-joined", { id: player2.id, name: player2.name });
+    socket2.emit("room:player-joined", { id: player1.id, name: player1.name });
   }
 };
 // ===============================
@@ -269,18 +279,18 @@ export function setupSocketHandlers(io) {
     console.log("✔ Client connected:", socket.id);
 
     // --- Tạo phòng ---
-    socket.on("create_room", ({ playerName }) => {
-      handleCreateRoom(socket, playerName);
+    socket.on("room:create", ({ name }) => { // <-- Đổi "create_room" và "playerName"
+      handleCreateRoom(socket, name);
     });
 
     // --- Tham gia phòng ---
-    socket.on("join_room", ({ roomId, playerName }) => {
-      handleJoinRoom(io, socket, roomId, playerName);
+    socket.on("room:join", ({ roomId, name }) => { // <-- Đổi "join_room" và "playerName"
+      handleJoinRoom(io, socket, roomId, name);
     });
 
     // --- Matchmaking ---
-    socket.on("join_matchmaking", ({ playerName }) => {
-      handleJoinMatchmaking(io, socket, playerName);
+    socket.on("room:quickplay", ({ name }) => { // <-- Đổi "join_matchmaking" và "playerName"
+      handleJoinMatchmaking(io, socket, name);
     });
 
     // --- Xử lý nước đi ---
@@ -289,7 +299,7 @@ export function setupSocketHandlers(io) {
     });
 
     // --- Chat ---
-    socket.on("send_message", (payload) => {
+    socket.on("chat:send", (payload) => { // <-- Đổi "send_message"
       handleSendMessage(io, socket, payload);
     });
 
