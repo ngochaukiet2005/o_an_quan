@@ -1,51 +1,55 @@
 <template>
-  <div class="board-container">
-    <div class="row p2-row">
-      <div 
-        v-for="i in [11, 10, 9, 8, 7]" 
-        :key="i"
-        class="cell civilian"
-        :class="{ 'my-cell': isMyCell(i), 'clickable': isClickable(i) }"
-        @click="onClick(i)"
+  <div class="game-board">
+    <div class="row top-row">
+      <div
+        class="pit quan-pit"
+        :class="{ active: activePit === 0 }"
+        @click="() => onPitClick(0)"
       >
-        <span>Ô {{ i }}</span>
-        <div class="stones">
-          <Stone v-if="board[i]?.quan" type="quan" />
-          <Stone v-for="d in board[i]?.dan" :key="d" type="dan" />
+        <div class="stone-summary-text">
+          <div>Ô 0</div>
+          <div class="count">{{ boardState[0].stones }}</div>
+          <div class="type">QUAN</div>
+        </div>
+      </div>
+      <div
+        v-for="i in 5"
+        :key="i"
+        class="pit square-pit"
+        :class="{ active: activePit === i }"
+        @click="() => onPitClick(i)"
+      >
+        <div class="stone-summary-text">
+          <div>Ô {{ i }}</div>
+          <div class="count">{{ boardState[i].stones }}</div>
+          <div class="type">DÂN</div>
         </div>
       </div>
     </div>
 
-    <div class="row quan-row">
-      <div class="cell quan quan-p2">
-        <span>Quan P2 (0)</span>
-        <div class="stones">
-          <Stone v-if="board[0]?.quan" type="quan" />
-          <Stone v-for="d in board[0]?.dan" :key="d" type="dan" />
-        </div>
-      </div>
-      
-      <div class="cell quan quan-p1">
-        <span>Quan P1 (6)</span>
-        <div class="stones">
-          <Stone v-if="board[6]?.quan" type="quan" />
-          <Stone v-for="d in board[6]?.dan" :key="d" type="dan" />
-        </div>
-      </div>
-    </div>
-
-    <div class="row p1-row">
-      <div 
-        v-for="i in [1, 2, 3, 4, 5]" 
-        :key="i"
-        class="cell civilian"
-        :class="{ 'my-cell': isMyCell(i), 'clickable': isClickable(i) }"
-        @click="onClick(i)"
+    <div class="row bottom-row">
+      <div
+        v-for="i in 5"
+        :key="11 - i + 1"
+        class="pit square-pit"
+        :class="{ active: activePit === 11 - i + 1 }"
+        @click="() => onPitClick(11 - i + 1)"
       >
-        <span>Ô {{ i }}</span>
-        <div class="stones">
-          <Stone v-if="board[i]?.quan" type="quan" />
-          <Stone v-for="d in board[i]?.dan" :key="d" type="dan" />
+        <div class="stone-summary-text">
+          <div>Ô {{ 11 - i + 1 }}</div>
+          <div class="count">{{ boardState[11 - i + 1].stones }}</div>
+          <div class="type">DÂN</div>
+        </div>
+      </div>
+      <div
+        class="pit quan-pit"
+        :class="{ active: activePit === 6 }"
+        @click="() => onPitClick(6)"
+      >
+        <div class="stone-summary-text">
+          <div>Ô 6</div>
+          <div class="count">{{ boardState[6].stones }}</div>
+          <div class="type">QUAN</div>
         </div>
       </div>
     </div>
@@ -53,112 +57,135 @@
 </template>
 
 <script setup>
-import Stone from './Stone.vue';
+import { computed } from 'vue';
+import { useStore } from 'vuex';
+// import Stone from './Stone.vue'; // <-- Đã xóa, không cần hiển thị đá nữa
 
-const props = defineProps({
-  board: {
-    type: Array,
-    required: true,
-  },
-  myPlayerNumber: { // 1 hoặc 2
-    type: Number,
-    required: true,
-  },
-  isMyTurn: {
-    type: Boolean,
-    required: true,
+const store = useStore();
+const boardState = computed(() => store.state.boardState);
+const activePit = computed(() => store.state.activePit);
+
+const emit = defineEmits(['pit-click']);
+
+const onPitClick = (index) => {
+  // Chỉ emit nếu ô đó không phải ô quan rỗng
+  if (boardState.value[index].isQuan && boardState.value[index].stones === 0) {
+    console.log("Không thể chọn ô quan rỗng");
+    return;
   }
-});
-
-const emit = defineEmits(['cell-click']);
-
-// Ô này có thuộc 5 ô dân của mình không
-const isMyCell = (index) => {
-  if (props.myPlayerNumber === 1) {
-    return index >= 1 && index <= 5;
-  } else if (props.myPlayerNumber === 2) {
-    return index >= 7 && index <= 11;
+  // Chỉ emit nếu ô dân đó có đá
+  if (!boardState.value[index].isQuan && boardState.value[index].stones === 0) {
+    console.log("Không thể chọn ô dân rỗng");
+    return;
   }
-  return false;
-};
-
-// Có được phép bấm vào ô này không
-const isClickable = (index) => {
-  if (!props.isMyTurn || !isMyCell(index)) {
-    return false;
-  }
-  // Kiểm tra sơ bộ (logic chính vẫn ở server)
-  const cell = props.board[index];
-  return cell && cell.dan > 0 && cell.quan === 0;
-};
-
-const onClick = (index) => {
-  // Chỉ emit nếu là ô dân (không phải ô quan)
-  if (index !== 0 && index !== 6) {
-    emit('cell-click', index);
-  }
+  emit('pit-click', index);
 };
 </script>
 
 <style scoped>
-.board-container {
-  border: 2px solid #6D4C41;
-  border-radius: 10px;
-  background-color: #A1887F;
-  padding: 10px;
-  width: 900px;
-}
-.row {
-  display: flex;
-  justify-content: space-between;
-}
-.quan-row {
-  margin: 10px 0;
-}
-.cell {
-  border: 2px solid #4E342E;
-  border-radius: 8px;
-  background-color: #EFEBE9;
-  height: 120px;
+/* GIỮ NGUYÊN CSS CŨ CHO BỐ CỤC BÀN CỜ 
+  VÀ THÊM CSS MỚI CHO HIỂN THỊ TEXT 
+*/
+
+.game-board {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: 5px;
-  box-sizing: border-box;
+  width: 900px;
+  margin: 20px auto;
+  background-color: #f0e6d2; /* Màu bàn cờ gỗ sáng */
+  border: 5px solid #8d6e63; /* Viền gỗ đậm */
+  border-radius: 20px;
+  padding: 10px;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
 }
-.cell span {
-  font-size: 12px;
-  font-weight: bold;
-  color: #3E2723;
-}
-.civilian {
-  width: 150px;
-}
-.quan {
-  width: 49%;
-  height: 140px;
-  background-color: #D7CCC8;
-}
-.stones {
+
+.row {
   display: flex;
-  flex-wrap: wrap;
+}
+
+.bottom-row {
+  /* Hàng dưới đi từ phải sang trái (ô 7 đến 11) */
+  flex-direction: row-reverse;
+}
+
+.pit {
+  border: 2px solid #a1887f; /* Viền ô */
+  margin: 5px;
+  cursor: pointer;
+  position: relative;
+  background-color: #fffbf2; /* Màu trong ô */
+  
+  /* Căn giữa text */
+  display: flex; 
   justify-content: center;
   align-items: center;
-  flex-grow: 1;
-  overflow-y: auto;
-  padding: 5px;
+  transition: all 0.2s ease;
 }
-/* Style cho ô của mình */
-.my-cell {
-  background-color: #FFF9C4; /* Màu vàng nhạt */
+
+.pit.active {
+  border-color: #e53935; /* Màu đỏ khi active */
+  box-shadow: 0 0 15px #e53935;
+  transform: scale(1.05);
 }
-/* Style khi có thể click */
-.clickable {
-  cursor: pointer;
-  border-color: #4CAF50;
-  border-width: 3px;
+
+.square-pit {
+  width: 120px;
+  height: 120px;
+  border-radius: 10px;
 }
-.clickable:hover {
-  background-color: #C8E6C9;
+
+.quan-pit {
+  width: 250px;
+  height: 120px;
+  margin: 5px 10px;
+}
+/* Làm cho ô quan có hình bán nguyệt */
+.top-row .quan-pit {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  border-top-left-radius: 125px; /* (width / 2) */
+  border-top-right-radius: 125px;
+}
+.bottom-row .quan-pit {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  border-bottom-left-radius: 125px;
+  border-bottom-right-radius: 125px;
+}
+
+
+/* === CSS MỚI ĐỂ HIỂN THỊ TEXT === */
+.stone-summary-text {
+  font-family: Arial, sans-serif;
+  text-align: center;
+  color: #333;
+  font-weight: bold;
+}
+
+.stone-summary-text .count {
+  font-size: 2.5rem;
+  font-weight: bold;
+}
+
+.stone-summary-text .type {
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Màu cho ô Dân */
+.square-pit .stone-summary-text .count {
+  color: #388e3c; /* Màu xanh lá */
+}
+.square-pit .stone-summary-text .type {
+  color: #5d4037; /* Màu nâu */
+}
+
+/* Màu cho ô Quan */
+.quan-pit .stone-summary-text .count {
+  color: #d32f2f; /* Màu đỏ */
+}
+.quan-pit .stone-summary-text .type {
+  color: #333;
 }
 </style>
