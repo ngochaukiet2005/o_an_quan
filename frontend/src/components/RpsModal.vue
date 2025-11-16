@@ -5,9 +5,9 @@
       <p>{{ message }}</p>
 
       <div v-if="!myChoice" class="choices">
-        <button @click="makeChoice('rock')" class="rps-button">✊ Kéo</button>
+        <button @click="makeChoice('rock')" class="rps-button">✊ Búa</button>
         <button @click="makeChoice('paper')" class="rps-button">✋ Bao</button>
-        <button @click="makeChoice('scissors')" class="rps-button">✌️ Búa</button>
+        <button @click="makeChoice('scissors')" class="rps-button">✌️ Kéo</button>
       </div>
       <div v-else class="waiting">
         <p>Bạn đã chọn {{ choiceToEmoji(myChoice) }}. Đang chờ đối thủ...</p>

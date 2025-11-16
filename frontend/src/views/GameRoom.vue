@@ -12,10 +12,7 @@
 
     <div v-if="gamePhase === 'playing'" class="game-layout">
       <div class="main-column">
-        <div v-if="timerValue !== null" class="timer-display">
-          Thời gian còn lại: <span>{{ timerValue }}s</span>
-        </div>
-
+        
         <div v-if="rpsResult" class="rps-result-message">
           {{ rpsResult }}
         </div>
@@ -23,6 +20,7 @@
         <PlayerInfo
           :players="players"
           :currentTurnId="currentTurnId"
+          :timerValue="timerValue" 
           class="player-box"
         />
 
@@ -81,7 +79,7 @@ import PlayerInfo from "../components/PlayerInfo.vue";
 import GameBoard from "../components/GameBoard.vue";
 import DirectionModal from "../components/DirectionModal.vue";
 import NotificationModal from "../components/NotificationModal.vue";
-import RpsModal from "../components/RpsModal.vue"; // <-- IMPORT MODAL MỚI
+import RpsModal from "../components/RpsModal.vue"; 
 
 /* ===============================
             STATE
@@ -419,21 +417,7 @@ function sendMessage(text) {
 }
 
 /* === STYLE MỚI CHO TIMER & RPS RESULT === */
-.timer-display {
-  font-size: 1.25rem;
-  font-weight: bold;
-  color: #333;
-  background-color: #fffbeB;
-  border: 1px solid #fde68a;
-  border-radius: 8px;
-  padding: 10px 16px;
-  margin-bottom: 20px;
-  text-align: center;
-}
-.timer-display span {
-  color: #d97706;
-  font-size: 1.5rem;
-}
+/* Đồng hồ đếm ngược chung đã bị XÓA */
 
 .rps-result-message {
   font-size: 1.1rem;
