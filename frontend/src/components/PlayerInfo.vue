@@ -1,151 +1,104 @@
 <template>
-  <div class="player-info-container">
-    <div class="player-box" :class="{ 'current-turn': isMyTurn }">
-      <div class="turn-indicator" v-if="isMyTurn">
-        <span></span>
-        Lượt Của Bạn
+  <div class="player-info" :class="{ 'active-turn': isMyTurn }">
+    <h3 class="player-name">
+      {{ player.name }}
+      <span v-if="isMyTurn">(Đang tới lượt)</span>
+    </h3>
+    <div class="scores">
+      <div class="score-box">
+        <span class="label">Tổng Điểm</span>
+        <span class="value">{{ totalScore }}</span>
       </div>
-      <h3>Bạn ({{ mySymbol }})</h3>
-      <div class="player-score">Điểm: {{ myScore }}</div>
-    </div>
-
-    <div class="player-box" :class="{ 'current-turn': !isMyTurn }">
-      <div class="turn-indicator" v-if="!isMyTurn">
-        <span></span>
-        Lượt Đối Thủ
+      <div class="score-box">
+        <span class="label">Kho Dân</span>
+        <span class="value">{{ score.dan }}</span>
       </div>
-      <h3>Đối thủ ({{ opponentSymbol }})</h3>
-      <div class="player-score">Điểm: {{ opponentScore }}</div>
+      <div class="score-box">
+        <span class="label">Kho Quan</span>
+        <span class="value">{{ score.quan }}</span>
+      </div>
+      <div v-if="debt > 0" class="score-box debt">
+        <span class="label">Đang nợ</span>
+        <span class="value">{{ debt }}</span>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed } from "vue";
+import { computed } from 'vue';
 
 const props = defineProps({
-  mySymbol: { type: String, required: true },
-  nextTurnSymbol: { type: String, required: true },
-  scores: { type: Object, required: true }, // <-- Nhận object MỚI
+  player: {
+    type: Object,
+    required: true,
+  },
+  score: { // là store.scores.player1 hoặc player2
+    type: Object,
+    required: true,
+  },
+  debt: {
+    type: Number,
+    default: 0,
+  },
+  isMyTurn: {
+    type: Boolean,
+    default: false,
+  }
 });
 
-const opponentSymbol = computed(() => {
-  return props.mySymbol === "P1" ? "P2" : "P1";
-});
-
-const isMyTurn = computed(() => {
-  return props.mySymbol === props.nextTurnSymbol;
-});
-
-// --- CẬP NHẬT LOGIC TÍNH ĐIỂM ---
-const myScoreData = computed(() => {
-  if (!props.scores) return { quan: 0, dan: 0 };
-  return props.mySymbol === "P1" ? props.scores.player1 : props.scores.player2;
-});
-
-const opponentScoreData = computed(() => {
-  if (!props.scores) return { quan: 0, dan: 0 };
-  return props.mySymbol === "P1" ? props.scores.player2 : props.scores.player1;
-});
-
-/**
- * Tính TỔNG ĐIỂM
- * Đây là nơi duy nhất dùng luật "1 Quan = 5 Dân"
- */
-const myTotalPoints = computed(() => {
-  if (!myScoreData.value) return 0;
-  return (myScoreData.value.quan * 5) + myScoreData.value.dan;
-});
-
-const opponentTotalPoints = computed(() => {
-  if (!opponentScoreData.value) return 0;
-  return (opponentScoreData.value.quan * 5) + opponentScoreData.value.dan;
-});
-
-// --- SỬA LỖI TƯƠNG THÍCH (fallback) ---
-// (Các computed cũ này sẽ giữ lại điểm nếu data chưa đúng)
-const myScore = computed(() => {
-  return myTotalPoints.value;
-});
-const opponentScore = computed(() => {
-  return opponentTotalPoints.value;
+// Tính tổng điểm dựa trên luật (Quan * 5 + Dân)
+const totalScore = computed(() => {
+  return (props.score.quan * 5) + props.score.dan;
 });
 </script>
 
 <style scoped>
-.player-info-container {
-  display: flex;
-  justify-content: center;
-  gap: 50px;
-  margin: 20px auto 40px auto;
-  max-width: 600px;
-}
-.player-box {
-  width: 250px;
+.player-info {
+  width: 900px;
   padding: 15px;
-  border: 3px solid #ccc;
-  border-radius: 12px;
-  background-color: #fff;
-  transition: all 0.3s ease;
-  opacity: 0.5; /* Mặc định làm mờ */
-  position: relative;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+  background-color: #f5f5f5;
+  border: 2px solid #ccc;
+  border-radius: 8px;
+  margin-bottom: 15px;
+  box-sizing: border-box;
 }
-.player-score {
-  font-size: 2.5rem;
-  font-weight: bold;
-  color: #2c3e50;
+.active-turn {
+  border-color: #4CAF50;
+  background-color: #E8F5E9;
+  box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
 }
-h3 {
-  margin-top: 5px;
-  margin-bottom: 10px;
-  color: #555;
+.player-name {
+  margin: 0 0 10px 0;
+  text-align: center;
+  color: #333;
 }
-
-/* --- Hiệu ứng Lượt đi --- */
-.player-box.current-turn {
-  opacity: 1; /* Nổi bật */
-  border-color: #42b983;
-  transform: scale(1.05);
-  box-shadow: 0 0 20px rgba(66, 185, 131, 0.5);
-}
-
-.turn-indicator {
-  position: absolute;
-  top: -15px;
-  left: 50%;
-  transform: translateX(-50%);
-  background-color: #42b983;
-  color: white;
-  padding: 5px 15px;
-  border-radius: 20px;
-  font-size: 0.9rem;
-  font-weight: bold;
+.scores {
   display: flex;
+  justify-content: space-around;
+  gap: 10px;
+}
+.score-box {
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 5px;
-  animation: pulse 2s infinite;
+  padding: 10px;
+  background-color: white;
+  border-radius: 5px;
+  border: 1px solid #ddd;
+  min-width: 100px;
 }
-
-.turn-indicator span {
-  width: 10px;
-  height: 10px;
-  background-color: #fff;
-  border-radius: 50%;
+.label {
+  font-size: 12px;
+  color: #777;
+  font-weight: bold;
 }
-
-@keyframes pulse {
-  0% {
-    transform: translateX(-50%) scale(1);
-    box-shadow: 0 0 0 0 rgba(66, 185, 131, 0.7);
-  }
-  70% {
-    transform: translateX(-50%) scale(1);
-    box-shadow: 0 0 0 10px rgba(66, 185, 131, 0);
-  }
-  100% {
-    transform: translateX(-50%) scale(1);
-    box-shadow: 0 0 0 0 rgba(66, 185, 131, 0);
-  }
+.value {
+  font-size: 24px;
+  font-weight: bold;
+  color: #3E2723;
+}
+.debt .value {
+  color: #D32F2F;
 }
 </style>

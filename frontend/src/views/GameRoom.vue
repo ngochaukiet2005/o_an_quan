@@ -1,275 +1,217 @@
 <template>
   <div class="game-room">
-    <NotificationModal
-      v-if="notification"
-      :title="notificationTitle"
-      :message="notificationMessage"
-      :type="notificationType"
-      :buttonText="notificationButtonText"
-      @close="onNotificationClose"
+    <PlayerInfo 
+      :player="player2"
+      :score="player2Score"
+      :debt="store.debt.player2"
+      :isMyTurn="isPlayer2Turn"
     />
 
+    <GameBoard
+      :board="store.board"
+      :myPlayerNumber="store.myPlayerNumber"
+      :isMyTurn="isMyTurn"
+      @cell-click="onCellClick"
+    />
+
+    <PlayerInfo 
+      :player="player1"
+      :score="player1Score"
+      :debt="store.debt.player1"
+      :isMyTurn="isPlayer1Turn"
+    />
+
+    <div class="game-messages">
+      <p v-if="store.gameMessage" class="message">{{ store.gameMessage }}</p>
+      <p v-if="store.errorMessage" class="error">{{ store.errorMessage }}</p>
+      <button @click="leaveRoom">Rời phòng</button>
+    </div>
+
+    <DirectionModal
+      :show="showDirectionModal"
+      @choose="onDirectionChosen"
+      @close="showDirectionModal = false"
+    />
+    
     <NotificationModal
-      v-if="gameWinner"
-      title="Trò chơi kết thúc!"
-      :message="gameStatus"
-      type="winner"
-      buttonText="Về Trang chủ"
-      @close="goHome"
-    >
-      <h2 style="color: #42b983">Trò chơi kết thúc!</h2>
-      <p class="status-text">{{ gameStatus }}</p>
-      <div v-if="finalScores" class="final-scores">
-        <strong>Kết quả cuối cùng:</strong>
-        <p v-if="players.length > 0">
-          {{ players[0].name }} (P1): {{ finalScores.player1 }} điểm
-        </p>
-        <p v-if="players.length > 1">
-          {{ players[1].name }} (P2): {{ finalScores.player2 }} điểm
-        </p>
-      </div>
-    </NotificationModal>
+      :show="showGameOverModal"
+      :title="gameOverTitle"
+      :message="gameOverMessage"
+      @close="goToHome"
+    />
 
-    <h1>Phòng Game: {{ roomId }}</h1>
-    <template v-if="mySymbol">
-      <PlayerInfo
-        :mySymbol="mySymbol"
-        :nextTurnSymbol="nextTurnSymbol"
-        :scores="scores"
-      />
-      <GameBoard
-        :board="boardState"
-        :mySymbol="mySymbol"
-        :myTurn="isMyTurn"
-        @make-move="handleMove"
-        @animation-start="isClientAnimating = true"
-        @animation-end="isClientAnimating = false"
-      />
-    </template>
-    
-    <p v-else class="game-status">{{ gameStatus }}</p>
-
-    <button @click="goHome" class="leave-btn" v-if="!gameWinner">
-      Rời khỏi phòng
-    </button>
-    
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from "vue";
-import { useRoute, useRouter } from "vue-router";
-import socketService from "../services/socketService";
-import GameBoard from "../components/GameBoard.vue";
-import PlayerInfo from "../components/PlayerInfo.vue";
-import NotificationModal from "../components/NotificationModal.vue";
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { store, updateStateFromServer, resetStore } from '../store';
+import { emit, on, off } from '../services/socketService';
 
-const route = useRoute();
+// Import components
+import GameBoard from '../components/GameBoard.vue';
+import PlayerInfo from '../components/PlayerInfo.vue';
+import DirectionModal from '../components/DirectionModal.vue';
+import NotificationModal from '../components/NotificationModal.vue';
+
 const router = useRouter();
-const roomId = ref(route.params.roomId);
 
-// --- State (CẬP NHẬT THEO CẤU TRÚC MỚI) ---
-const boardState = ref([]); // <-- Sẽ được điền bởi server
-const scores = ref({ // <-- Cấu trúc MỚI
-  player1: { quan: 0, dan: 0 },
-  player2: { quan: 0, dan: 0 }
-});
-const finalScores = ref(null); // <-- Sẽ là object
-const nextTurnPlayerId = ref(null);
-const gameWinner = ref(null);
-const gameStatus = ref("Đang đợi người chơi thứ 2...");
-const mySymbol = ref(null);
-const players = ref([]);
-const isClientAnimating = ref(false);
+// --- Trạng thái local cho UI (Modals) ---
+const showDirectionModal = ref(false);
+const selectedCellIndex = ref(null);
+const showGameOverModal = ref(false);
+const gameOverTitle = ref('');
+const gameOverMessage = ref('');
 
-// --- State cho Modal Thông báo Mới ---
-const notification = ref(false);
-const notificationTitle = ref("Thông báo");
-const notificationMessage = ref("");
-const notificationType = ref("notification");
-const notificationButtonText = ref("Đã hiểu");
-const autoCloseAction = ref(null);
+// --- Dữ liệu Computed (Lấy từ store) ---
+const isMyTurn = computed(() => store.nextTurnPlayerId === store.myPlayerId);
+const isPlayer1Turn = computed(() => store.players[0] && store.nextTurnPlayerId === store.players[0].id);
+const isPlayer2Turn = computed(() => store.players[1] && store.nextTurnPlayerId === store.players[1].id);
 
-// --- Hàm Hiển thị Thông báo ---
-const showNotification = (
-  title,
-  message,
-  type = "notification",
-  buttonText = "Đã hiểu",
-  onClose = null
-) => {
-  notificationTitle.value = title;
-  notificationMessage.value = message;
-  notificationType.value = type;
-  notificationButtonText.value = buttonText;
-  autoCloseAction.value = onClose;
-  notification.value = true;
-};
+// Định nghĩa P1 và P2 (P1 luôn là index 0, P2 là index 1)
+const player1 = computed(() => store.players[0] || { name: 'Player 1' });
+const player2 = computed(() => store.players[1] || { name: 'Player 2' });
 
-const onNotificationClose = () => {
-  notification.value = false;
-  if (autoCloseAction.value) {
-    autoCloseAction.value();
-    autoCloseAction.value = null;
-  }
-};
+const player1Score = computed(() => store.scores.player1);
+const player2Score = computed(() => store.scores.player2);
 
-// --- Các hàm lắng nghe sự kiện (ĐÃ CẬP NHẬT) ---
-const onGameStart = (data) => {
-  gameStatus.value = "Game đã bắt đầu!";
-  players.value = data.players;
-  boardState.value = data.board; // <-- Nhận board MỚI
-  scores.value = data.scores; // <-- Nhận score MỚI
-  nextTurnPlayerId.value = data.startingPlayerId;
-  const myPlayerInfo = data.players.find(
-    (p) => p.id === socketService.socket.id
-  );
-  if (myPlayerInfo) {
-    mySymbol.value = myPlayerInfo.symbol === "X" ? "P1" : "P2";
-  }
-};
+// --- Xử lý sự kiện Socket ---
 
-const onUpdateGameState = (data) => {
-  boardState.value = data.board; // <-- Nhận board MỚI
-  scores.value = data.scores; // <-- Nhận score MỚI
-  nextTurnPlayerId.value = data.nextTurnPlayerId;
-  gameStatus.value = `Lượt của: ${nextTurnSymbol.value}`;
-};
-
-const onGameOver = (data) => {
-  finalScores.value = data.finalScores; // <-- Nhận score MỚI
-  if (data.reason === "draw") {
-    gameWinner.value = "draw";
-    gameStatus.value = "Hòa cờ!";
-  } else if (data.winner === socketService.socket.id) {
-    gameWinner.value = mySymbol.value;
-    gameStatus.value = "Bạn đã thắng!";
-  } else {
-    gameWinner.value = mySymbol.value === "P1" ? "P2" : "P1";
-    gameStatus.value = "Bạn đã thua!";
-  }
-};
-
-const onKicked = (data) => {
-  showNotification(
-    "Thông báo",
-    data.message,
-    "notification",
-    "Về Trang chủ",
-    () => {
-      router.push({ name: "Home" });
-    }
-  );
+const onUpdateState = (newState) => {
+  console.log('Nhận update state:', newState);
+  updateStateFromServer(newState);
 };
 
 const onInvalidMove = (data) => {
-  showNotification("Nước đi không hợp lệ!", data.message, "error");
+  console.warn('Nước đi không hợp lệ:', data.message);
+  store.errorMessage = data.message;
 };
 
-// --- Computed ---
-const isMyTurn = computed(() => {
-  return (
-    nextTurnPlayerId.value === socketService.socket.id &&
-    !gameWinner.value &&
-    !isClientAnimating.value
-  );
-});
-
-const nextTurnSymbol = computed(() => {
-  if (!players.value.length) return null;
-  const nextPlayer = players.value.find(
-    (p) => p.id === nextTurnPlayerId.value
-  );
-  if (!nextPlayer) return null;
-  return nextPlayer.symbol === "X" ? "P1" : "P2";
-});
-
-// --- Actions (Giữ nguyên các bản sửa lỗi trước) ---
-const handleMove = (moveData) => {
-  // if (isClientAnimating.value) return; // <-- Dòng này đã được xóa (ĐÚNG)
+const onGameOver = (data) => {
+  console.log('Game Over:', data);
   
-  socketService.emit("make_move", {
-    cellIndex: moveData.cellIndex,
-    direction: moveData.direction,
-  });
+  // Cập nhật state lần cuối
+  if(data.finalState) {
+    updateStateFromServer(data.finalState);
+  }
+
+  // Hiển thị modal
+  let winnerName = 'Hòa!';
+  if (data.winner === player1.value.id) winnerName = `${player1.value.name} thắng!`;
+  if (data.winner === player2.value.id) winnerName = `${player2.value.name} thắng!`;
+  
+  gameOverTitle.value = winnerName;
+  gameOverMessage.value = `${data.gameMessage} | Điểm cuối: P1 (${data.finalScores.player1}) - P2 (${data.finalScores.player2})`;
+  showGameOverModal.value = true;
 };
 
-const goHome = () => {
-  if (gameWinner.value) {
-    router.push({ name: "Home" });
+const onKicked = (data) => {
+  // Xử lý khi đối thủ rời phòng
+  alert(data.message);
+  goToHome();
+};
+
+// --- Vòng đời Component ---
+
+onMounted(() => {
+  if (!store.roomId) {
+    // Nếu F5 trang hoặc vào trực tiếp, đá về Home
+    router.push('/');
     return;
   }
-  if (confirm("Bạn có chắc muốn rời phòng? Bạn sẽ bị xử thua.")) {
-    socketService.emit("leave_room");
-  }
-};
-
-// --- Vòng đời ---
-onMounted(() => {
-  if (!socketService.socket.connected) {
-    socketService.connect();
-  }
-  const initialData = window.history.state.initialData;
-  if (initialData) {
-    onGameStart(initialData);
-  }
-  socketService.on("game_start", onGameStart);
-  socketService.on("update_game_state", onUpdateGameState);
-  socketService.on("game_over", onGameOver);
-  socketService.on("invalid_move", onInvalidMove);
-  socketService.on("kicked_to_menu", onKicked);
+  
+  // Lắng nghe các sự kiện
+  on('update_game_state', onUpdateState);
+  on('invalid_move', onInvalidMove);
+  on('game_over', onGameOver);
+  on('kicked_to_menu', onKicked);
 });
 
 onUnmounted(() => {
-  socketService.off("game_start", onGameStart);
-  socketService.off("update_game_state", onUpdateGameState);
-  socketService.off("game_over", onGameOver);
-  socketService.off("invalid_move", onInvalidMove);
-  socketService.off("kicked_to_menu", onKicked);
+  // Hủy lắng nghe
+  off('update_game_state', onUpdateState);
+  off('invalid_move', onInvalidMove);
+  off('game_over', onGameOver);
+  off('kicked_to_menu', onKicked);
 });
+
+// --- Hành động của người dùng ---
+
+const onCellClick = (index) => {
+  if (!isMyTurn.value) {
+    store.errorMessage = "Không phải lượt của bạn!";
+    return;
+  }
+
+  // Logic kiểm tra ô hợp lệ (dan > 0, quan = 0) nằm ở server, 
+  // nhưng ta có thể kiểm tra sơ bộ ở client để tránh gửi yêu cầu thừa
+  const cell = store.board[index];
+  if (cell.dan === 0 || cell.quan > 0) {
+     store.errorMessage = "Không thể bốc từ ô này (Phải có dân và không có quan).";
+     return;
+  }
+  
+  store.errorMessage = "";
+  selectedCellIndex.value = index;
+  showDirectionModal.value = true;
+};
+
+const onDirectionChosen = (direction) => {
+  showDirectionModal.value = false;
+  if (selectedCellIndex.value === null || !direction) {
+    return;
+  }
+
+  // GỬI NƯỚC ĐI LÊN SERVER
+  emit('make_move', {
+    cellIndex: selectedCellIndex.value,
+    direction: direction, // 'left' hoặc 'right'
+  });
+
+  selectedCellIndex.value = null;
+};
+
+const leaveRoom = () => {
+  if (confirm('Bạn có chắc muốn rời phòng? Bạn sẽ bị xử thua.')) {
+    emit('leave_room', {});
+    goToHome();
+  }
+};
+
+const goToHome = () => {
+  resetStore();
+  router.push('/');
+};
+
 </script>
 
 <style scoped>
-/* (CSS cũ đã được chuyển sang NotificationModal.vue) */
 .game-room {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   padding: 20px;
+  width: 100%;
 }
-.game-status {
-  font-size: 1.2rem;
-  font-weight: bold;
-  min-height: 1.5em;
-  margin-bottom: 20px;
-}
-.leave-btn {
+.game-messages {
   margin-top: 20px;
-  padding: 10px 20px;
-  background-color: #f44336;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  display: block;
-  margin: 40px auto;
-  font-size: 1rem;
-  transition: background-color 0.2s;
+  text-align: center;
 }
-.leave-btn:hover {
-  background-color: #d32f2f;
-}
-
-/* Các style này được dùng trong Modal (chèn qua slot) */
-.final-scores {
-  text-align: left;
-  margin-top: 20px;
-  padding: 15px;
-  background-color: #f4f4f5;
-  border-radius: 8px;
-  border: 1px solid #e0e0e0;
-}
-.status-text {
-  font-size: 1.3rem;
+.message {
+  font-size: 1.2em;
   font-weight: bold;
   color: #333;
-  margin: 15px 0;
+}
+.error {
+  font-size: 1.1em;
+  color: #D32F2F;
+  font-weight: bold;
+}
+button {
+  margin-top: 10px;
+  padding: 8px 15px;
+  font-size: 16px;
+  cursor: pointer;
 }
 </style>
