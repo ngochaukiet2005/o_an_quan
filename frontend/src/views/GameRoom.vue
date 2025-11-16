@@ -5,14 +5,12 @@
       Bạn là: <strong>{{ playerName }}</strong>
     </p>
 
-    <!-- ===== PLAYER LIST ===== -->
     <PlayerInfo
       :players="players"
       :currentTurnId="currentTurnId"
       class="player-box"
     />
 
-    <!-- ===== GAME BOARD ===== -->
     <GameBoard
       v-if="board.length"
       :board="board"
@@ -21,86 +19,114 @@
       :playerId="playerId"
       @move="handleMove"
     />
-
-    <!-- ===== CHAT ===== -->
-    <ChatBox :messages="messages" @send="sendMessage" class="chat-box" />
+    
     <DirectionModal
       :show="showDirectionModal"
       @choose="onDirectionChosen"
       @close="showDirectionModal = false"
     />
+    
     <NotificationModal
       :show="showGameOverModal"
       :title="gameOverTitle"
       :message="gameOverMessage"
       @close="goToHome"
     />
+
+    <ChatBox :messages="messages" @send="sendMessage" class="chat-box" />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, computed } from "vue";
+// --- SỬA 1: Thêm 'computed' ---
+import { ref, onMounted, onBeforeUnmount, computed } from "vue"; 
+// --- SỬA 2: Thêm 3 import này ---
+import { useRouter } from "vue-router"; 
+import DirectionModal from "../components/DirectionModal.vue";
+import NotificationModal from "../components/NotificationModal.vue";
+
 import { useRoute } from "vue-router";
 import socketService from "../services/socketService";
 
 import ChatBox from "../components/ChatBox.vue";
 import PlayerInfo from "../components/PlayerInfo.vue";
 import GameBoard from "../components/GameBoard.vue";
-import DirectionModal from "../components/DirectionModal.vue"; // <-- THÊM MỚI
-import NotificationModal from "../components/NotificationModal.vue"; // <-- THÊM MỚI
-import { useRouter } from "vue-router"; // <-- THÊM MỚI
 
 /* ===============================
             STATE
 ================================= */
 
 const route = useRoute();
+// --- SỬA 3: Thêm router ---
+const router = useRouter(); 
 
 const roomId = route.params.roomId;
 const playerName = route.query.playerName;
-const router = useRouter();
+
 const playerId = ref("");
 const playerSymbol = ref("");
-
 const players = ref([]);
 const board = ref([]);
-
-const currentTurnId = ref("");
-
+const currentTurnId = ref(null);
 const messages = ref([]);
+
+// --- SỬA 4: Thêm state cho Modals ---
 const showDirectionModal = ref(false);
 const selectedCellIndex = ref(null);
 const showGameOverModal = ref(false);
 const gameOverTitle = ref('');
 const gameOverMessage = ref('');
+// ------------------------------------
+
 /* ===============================
-        SOCKET HANDLERS
+        SOCKET LISTENERS
 ================================= */
 
+// --- SỬA 5: Tạo hàm xử lý state chung ---
+// (Hàm này sẽ dùng cho cả 'game_start' và 'update_game_state')
+function handleStateUpdate(state) {
+  console.log("📌 Nhận state:", state);
+
+  // Cập nhật tất cả state từ server
+  board.value = state.board;
+  players.value = state.players.map(p => ({
+    ...p,
+    // Gán điểm cho PlayerInfo (nếu backend gửi 'scores')
+    score: (p.symbol === 'X' ? state.scores?.player1 : state.scores?.player2) 
+           ? (p.symbol === 'X' ? (state.scores.player1.quan * 5 + state.scores.player1.dan) 
+                              : (state.scores.player2.quan * 5 + state.scores.player2.dan))
+           : 0,
+  }));
+  
+  // Backend cũ gửi `nextTurnPlayerId`, backend mới gửi `startingPlayerId`
+  currentTurnId.value = state.nextTurnPlayerId || state.startingPlayerId; 
+  
+  // Cập nhật tin nhắn (nếu có)
+  if (state.gameMessage) {
+     messages.value.push({ senderName: "Hệ thống", message: state.gameMessage });
+  }
+}
+// ------------------------------------
+
 onMounted(() => {
-  console.log("▶ Join room:", roomId, "as", playerName);
-
-  // Gửi join_room (đúng theo backend của bạn)
-  socketService.getSocket().emit("room:join", {
-    roomId,
-    playerName,
-  });
-
-  // Backend trả về khi join thành công
+  // Trả về khi join thành công
   socketService.getSocket().on("room:joined", (data) => {
     console.log("✔ room:joined", data);
     playerId.value = data.playerId;
     playerSymbol.value = data.playerSymbol;
   });
 
-  // Backend gửi state game
-  socketService.getSocket().on("update_game_state", (state) => {
-    console.log("📌 update_game_state", state);
+  // --- SỬA 6: Sửa lại listener ---
+  // Backend gửi state game (SỰ KIỆN CŨ)
+  socketService.getSocket().on("update_game_state", handleStateUpdate);
 
-    board.value = state.board;
-    players.value = state.players;
-    currentTurnId.value = state.currentTurnId;
-  });
+  // Backend gửi state game (SỰ KIỆN MỚI KHI VÀO PHÒNG)
+  socketService.getSocket().on("game_start", handleStateUpdate);
+  // ---------------------------------
+  
+  // --- SỬA 7: Thêm listener cho game over ---
+  socketService.getSocket().on("game_over", onGameOver);
+  // ---------------------------------
 
   // Chat message mới
   socketService.getSocket().on("chat:receive", (msg) => {
@@ -117,7 +143,6 @@ onMounted(() => {
 
   socketService.getSocket().on("error", (err) => {
     alert(err.message);
-  socketService.getSocket().on("game_over", onGameOver);
   });
 });
 
@@ -129,30 +154,29 @@ onBeforeUnmount(() => {
         USER ACTIONS
 ================================= */
 
-
-// gửi chat
-function sendMessage(text) {
-  socketService.sendMessage(roomId, playerName.value, text);
-}
-// === THÊM MỚI: Các hàm xử lý ===
-
-// 1. Hàm này được gọi khi click vào ô cờ
+// --- SỬA 8: Đây là hàm handleMove (mở modal) ---
 function handleMove(index) {
-  // (Bạn có thể thêm kiểm tra `isMyTurn` ở đây nếu muốn)
-
-  // Không gửi đi vội, mà mở modal chọn hướng
+  // Kiểm tra có đúng lượt mình không
+  if (currentTurnId.value !== playerId.value) {
+    alert("Chưa đến lượt của bạn!");
+    return;
+  }
+  
+  // (Bạn có thể thêm kiểm tra ô hợp lệ ở đây)
+  
   selectedCellIndex.value = index;
   showDirectionModal.value = true;
 }
+// -----------------------------------------
 
-// 2. Hàm này được gọi khi người dùng chọn hướng (Trái/Phải)
+// --- SỬA 9: Đây là hàm gửi nước đi LÊN SERVER ---
 function onDirectionChosen(direction) {
   showDirectionModal.value = false;
   if (selectedCellIndex.value === null || !direction) {
     return;
   }
 
-  // Đây mới là lúc gửi nước đi lên server
+  // Gửi sự kiện 'make_move' (backend đang lắng nghe cái này)
   socketService.makeMove({
     cellIndex: selectedCellIndex.value,
     direction: direction, // 'left' hoặc 'right'
@@ -160,8 +184,9 @@ function onDirectionChosen(direction) {
 
   selectedCellIndex.value = null;
 }
+// -----------------------------------------
 
-// 3. Hàm xử lý khi game kết thúc
+// --- SỬA 10: Thêm các hàm xử lý Game Over ---
 const onGameOver = (data) => {
   console.log('Game Over:', data);
 
@@ -169,31 +194,37 @@ const onGameOver = (data) => {
   const p1 = players.value[0];
   const p2 = players.value[1];
 
-  if (data.winner === p1.id) winnerName = `${p1.name} thắng!`;
-  if (data.winner === p2.id) winnerName = `${p2.name} thắng!`;
-
+  if (p1 && data.winner === p1.id) winnerName = `${p1.name} thắng!`;
+  if (p2 && data.winner === p2.id) winnerName = `${p2.name} thắng!`;
+  
   gameOverTitle.value = winnerName;
   gameOverMessage.value = `${data.gameMessage} | Điểm cuối: P1 (${data.finalScores.player1}) - P2 (${data.finalScores.player2})`;
   showGameOverModal.value = true;
 };
 
-// 4. Hàm để về trang chủ
 const goToHome = () => {
-  // (Bạn có thể cần reset state ở đây)
   router.push('/');
 };
+// -----------------------------------------
+
+function sendMessage(text) {
+  socketService.sendMessage(roomId, playerName, text);
+}
 </script>
 
 <style scoped>
 .room-page {
-  padding: 20px 30px;
+  max-width: 900px;
+  margin: 100px auto 30px;
+  padding: 20px;
+  background: #f9fafb;
+  border-radius: 12px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
 }
-
 .player-box {
   margin-bottom: 20px;
 }
-
 .chat-box {
-  margin-top: 30px;
+  margin-top: 25px;
 }
 </style>
