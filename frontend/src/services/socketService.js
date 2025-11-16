@@ -67,7 +67,7 @@ function onGameStart(cb) {
 }
 function makeMove(payload) {
   // payload sẽ có dạng { roomId, playerId, startIndex }
-  getSocket().emit("game:move", payload);
+  getSocket().emit("make_move", payload);
 }
 function sendMessage(roomId, playerName, text) {
   // Thêm playerName
