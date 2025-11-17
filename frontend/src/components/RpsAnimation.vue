@@ -15,33 +15,33 @@
 </template>
 
 <script setup>
-import { onMounted, shallowRef } from 'vue';
-// Đảm bảo đường dẫn này đúng với cấu trúc thư mục của bạn
+// 🔽 BƯỚC 1: Xóa 'shallowRef' khỏi import
+import { onMounted } from 'vue'; 
 import RockIcon from './icons/RockIcon.vue';
 import PaperIcon from './icons/PaperIcon.vue';
 import ScissorsIcon from './icons/ScissorsIcon.vue';
 
 const props = defineProps({
-  // XÓA 'show: Boolean' khỏi đây
-  myChoice: String,   // 'rock', 'paper', 'scissors'
-  oppChoice: String, // 'rock', 'paper', 'scissors'
+  myChoice: String,
+  oppChoice: String,
 });
 
 const emit = defineEmits(['animation-finished']);
 
+// 🔽 BƯỚC 2: Trả về component trực tiếp, KHÔNG DÙNG shallowRef
 const getChoiceComponent = (choice) => {
-  if (choice === 'rock') return shallowRef(RockIcon);
-  if (choice === 'paper') return shallowRef(PaperIcon);
-  if (choice === 'scissors') return shallowRef(ScissorsIcon);
+  if (choice === 'rock') return RockIcon;
+  if (choice === 'paper') return PaperIcon;
+  if (choice === 'scissors') return ScissorsIcon;
   return null;
 };
+// 🔼 KẾT THÚC SỬA LỖI
 
-// onMounted sẽ CHỈ CHẠY khi component được hiển thị (do v-if ở cha)
+// onMounted sẽ chạy khi component được hiển thị
 onMounted(() => {
-  // XÓA 'if (props.show)'
   setTimeout(() => {
     emit('animation-finished');
-  }, 3000); // Đợi 3 giây cho animation (bạn có thể đổi thời gian này)
+  }, 3000); // Đợi 3 giây cho animation
 });
 </script>
 
@@ -58,7 +58,7 @@ onMounted(() => {
   justify-content: center;
   z-index: 1000;
   overflow: hidden;
-  color: white; /* Đặt màu mặc định cho icon (nếu SVG dùng 'currentColor') */
+  color: white; 
 }
 
 .choice-container {
@@ -71,8 +71,6 @@ onMounted(() => {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-
-  /* ĐỊNH KÍCH THƯỚC ICON Ở ĐÂY */
   width: 150px;
   height: 150px;
 }
@@ -86,13 +84,11 @@ onMounted(() => {
 .opponent-choice {
   animation: move-down 1.5s ease-out forwards;
 }
-.opponent-choice :deep(svg) { /* :deep để style vào component con */
-  /* Lật hình ảnh của đối thủ */
+.opponent-choice :deep(svg) { 
   transform: rotate(180deg);
 }
 
-
-/* Định nghĩa Keyframes (giữ nguyên) */
+/* Keyframes giữ nguyên */
 @keyframes move-up {
   from {
     bottom: -200px;
