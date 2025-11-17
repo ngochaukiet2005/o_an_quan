@@ -124,11 +124,11 @@ const gameOverMessage = ref("");
 ================================= */
 
 // Xử lý khi nhận state (từ 'game_start' hoặc 'update_game_state')
-function handleStateUpdate(state) {
+function handleStateUpdate(state, forceUpdate = false) {
   console.log("📌 Nhận state:", state);
   // KIỂM TRA QUAN TRỌNG:
   // Nếu animation đang chạy, hãy lưu state lại và chờ
-  if (gamePhase.value === 'animation') {
+  if (gamePhase.value === 'animation' && !forceUpdate) {
     console.log("Animation đang chạy, tạm hoãn cập nhật state.");
     pendingGameState.value = state;
     return; // Dừng, không làm gì thêm cho đến khi animation xong
@@ -375,28 +375,28 @@ function sendMessage(text) {
 // HÀM ĐÃ SỬA
 // HÀM ĐÃ SỬA
 function handleRpsAnimationEnd() {
-  // 2. Lấy data kết quả đã lưu (Phần này của bạn đã đúng)
+  // 1. Lấy data kết quả đã lưu
   if (rpsResultData.value) {
     const { message, player1Choice, player2Choice } = rpsResultData.value;
 
-    // 3. Tìm tên người chơi
+    // 2. Tìm tên người chơi
     const p1 = players.value.find((p) => p.symbol === "X");
     const p2 = players.value.find((p) => p.symbol === "O");
     const p1Name = p1 ? p1.name : "Người chơi 1";
     const p2Name = p2 ? p2.name : "Người chơi 2";
     const choiceMap = { rock: "Búa", paper: "Bao", scissors: "Kéo" };
 
-    // 4. Cập nhật ref 'rpsResult'
+    // 3. Cập nhật ref 'rpsResult' để hiển thị tin nhắn
     rpsResult.value = `${p1Name} chọn ${
       choiceMap[player1Choice] || player1Choice
     }, ${p2Name} chọn ${
       choiceMap[player2Choice] || player2Choice
     }. ${message}`; 
 
-    // 5. Xóa data tạm
+    // 4. Xóa data tạm
     rpsResultData.value = null;
 
-    // 6. Tự động xóa tin nhắn sau 5 giây
+    // 5. Tự động xóa tin nhắn sau 5 giây
     setTimeout(() => {
       rpsResult.value = null;
     }, 5000);
@@ -412,7 +412,7 @@ function handleRpsAnimationEnd() {
   if (pendingGameState.value) {
     console.log("Animation kết thúc, áp dụng state game đang chờ.");
     // Bây giờ mới gọi handleStateUpdate để vẽ bàn cờ
-    handleStateUpdate(pendingGameState.value); 
+    handleStateUpdate(pendingGameState.value, true); 
     pendingGameState.value = null; // Xóa state chờ
   }
 }
