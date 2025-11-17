@@ -66,8 +66,7 @@
       @close="goToHome"
     />
     <RpsAnimation
-      v-if="showRpsAnimation"
-      :myChoice="rpsChoices.my"
+      v-if="gamePhase === 'animation'" :myChoice="rpsChoices.my"
       :oppChoice="rpsChoices.opp"
       @animation-finished="handleRpsAnimationEnd"
     />
@@ -129,7 +128,7 @@ function handleStateUpdate(state) {
   console.log("📌 Nhận state:", state);
   // KIỂM TRA QUAN TRỌNG:
   // Nếu animation đang chạy, hãy lưu state lại và chờ
-  if (showRpsAnimation.value) {
+  if (gamePhase.value === 'animation') {
     console.log("Animation đang chạy, tạm hoãn cập nhật state.");
     pendingGameState.value = state;
     return; // Dừng, không làm gì thêm cho đến khi animation xong
@@ -268,7 +267,7 @@ function setupSocketListeners() {
       }
 
       // 4. Kích hoạt component hiệu ứng
-      showRpsAnimation.value = true
+      gamePhase.value = 'animation'
     }
   )
   // 🔼🔼 KẾT THÚC PHẦN THAY THẾ 🔼🔼
@@ -376,9 +375,6 @@ function sendMessage(text) {
 // HÀM ĐÃ SỬA
 // HÀM ĐÃ SỬA
 function handleRpsAnimationEnd() {
-  // 1. Ẩn component hiệu ứng
-  showRpsAnimation.value = false;
-
   // 2. Lấy data kết quả đã lưu (Phần này của bạn đã đúng)
   if (rpsResultData.value) {
     const { message, player1Choice, player2Choice } = rpsResultData.value;
