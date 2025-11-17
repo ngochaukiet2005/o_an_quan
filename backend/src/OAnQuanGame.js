@@ -275,14 +275,58 @@ export class OAnQuanGame {
         continue;
       }
 
-      // 5.3. LUẬT ĂN:
-      // Nếu next TRỐNG & next2 CÓ QUÂN -> ăn toàn bộ next2, kết thúc lượt
+      // 5.3. LUẬT ĂN (VÀ ĂN DÂY):
+      // Nếu next TRỐNG & next2 CÓ QUÂN -> kích hoạt ăn
       const nextIsEmpty = nextSq.dan === 0 && nextSq.quan === 0;
       const next2HasPieces = next2Sq.dan > 0 || next2Sq.quan > 0;
 
       if (nextIsEmpty && next2HasPieces) {
+        // 5.3.1. Ăn lần đầu tiên (bắt buộc)
         const { eatenDan, eatenQuan } = this.captureAt(next2, currentPlayer);
         this.state.gameMessage = `Người chơi ${currentPlayer} ăn ${eatenQuan} Quan và ${eatenDan} Dân ở ô ${next2}.`;
+
+        // 5.3.2. Bắt đầu vòng lặp ĂN DÂY
+        // Gán ô vừa ăn (next2) là ô "last" mới để xét tiếp
+        let lastEatenIndex = next2;
+        let continueChainEating = true;
+
+        // Kiểm tra game over ngay sau lần ăn đầu tiên
+        this.checkGameEnd();
+
+        while (continueChainEating && !this.state.isGameOver) {
+          // Tính toán ô 'next' và 'next2' mới, dựa trên ô vừa ăn (lastEatenIndex)
+          const chainNext = this.getValidIndex(lastEatenIndex + dir);
+          const chainNextSq = this.state.board[chainNext];
+          const chainNext2 = this.getValidIndex(chainNext + dir);
+          const chainNext2Sq = this.state.board[chainNext2];
+
+          // Điều kiện để ăn dây (ô kế tiếp trống VÀ ô sau nữa có quân)
+          const chainNextIsEmpty = chainNextSq.dan === 0 && chainNextSq.quan === 0;
+          const chainNext2HasPieces =
+            chainNext2Sq.dan > 0 || chainNext2Sq.quan > 0;
+
+          if (chainNextIsEmpty && chainNext2HasPieces) {
+            // Nếu đủ điều kiện -> Ăn tiếp!
+            const { eatenDan, eatenQuan } = this.captureAt(
+              chainNext2,
+              currentPlayer
+            );
+
+            // Cập nhật thông báo game
+            this.state.gameMessage += ` (Ăn dây: ${eatenQuan} Quan, ${eatenDan} Dân ở ô ${chainNext2}).`;
+
+            // Cập nhật con trỏ (ô vừa ăn) cho vòng lặp tiếp theo
+            lastEatenIndex = chainNext2;
+
+            // Kiểm tra game over ngay trong lúc ăn dây
+            this.checkGameEnd();
+          } else {
+            // Dừng ăn dây (vì 'next' có quân, hoặc cả 'next' và 'next2' đều trống)
+            continueChainEating = false;
+          }
+        } // Kết thúc vòng lặp while (continueChainEating)
+
+        // 5.3.3. Kết thúc toàn bộ lượt đi sau khi đã ăn (và ăn dây xong)
         continueTurn = false;
         break;
       }
@@ -309,6 +353,7 @@ export class OAnQuanGame {
     }
 
     // 6. Kiểm tra kết thúc ván (cả 2 Quan = 0 và không còn Quan trên bàn)
+    // (Đã được gọi bên trong vòng lặp ăn dây, nhưng gọi lại ở đây để chắc chắn)
     this.checkGameEnd();
 
     if (this.state.isGameOver) {
