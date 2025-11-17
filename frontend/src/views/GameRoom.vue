@@ -67,8 +67,8 @@
     />
     <RpsAnimation
       v-if="showRpsAnimation"
-      :player1Choice="rpsChoices.p1"
-      :player2Choice="rpsChoices.p2"
+      :myChoice="rpsChoices.my"
+      :oppChoice="rpsChoices.opp"
       @animation-finished="handleRpsAnimationEnd"
     />
   </div>
@@ -106,7 +106,7 @@ const rpsResult = ref(null); // Lưu tin nhắn kết quả RPS
 const timerValue = ref(null);
 const timerInterval = ref(null);
 const showRpsAnimation = ref(false)
-const rpsChoices = ref({ p1: null, p2: null })
+const rpsChoices = ref({ my: null, opp: null })
 const rpsResultData = ref(null) // Dùng để lưu kết quả trong khi chờ hiệu ứng
 // --- State cũ ---
 const players = ref([]);
@@ -252,32 +252,41 @@ function setupSocketListeners() {
   socketService.getSocket().on("kicked_to_menu", onKicked);
   
   // 🔽🔽 THÊM VÀO ĐÂY 🔽🔽
-  socketService.getSocket().on(
-    'rpsResult',
-    (data) => {
-      // data = { result, player1Choice, player2Choice, message }
-      console.log('RPS Result:', data)
+  // 🔽🔽 SỬA LẠI HOÀN TOÀN LISTENER NÀY 🔽🔽
+socketService.getSocket().on(
+  'rpsResult',
+  (data) => {
+    // data = { result, player1Choice, player2Choice, message }
+    console.log('RPS Result:', data)
 
-      // 1. Lưu lại data kết quả để dùng sau khi hiệu ứng chạy xong
-      rpsResultData.value = data
+    // 1. Lưu data để dùng sau khi hiệu ứng xong
+    rpsResultData.value = data
 
-      // 2. Lưu lựa chọn để truyền vào component hiệu ứng
-      rpsChoices.value = {
-        p1: data.player1Choice,
-        p2: data.player2Choice,
-      }
+    // 2. TÍNH TOÁN "TÔI" VÀ "ĐỐI THỦ"
+    const me = players.value.find((p) => p.id === playerId.value);
+    const mySymbol = me ? me.symbol : "X"; // Mặc định là P1 nếu không tìm thấy
 
-      // 3. Ẩn modal chọn oẳn tù tì
-      // (Dòng này có thể không cần thiết nếu 'gamePhase' đã đổi,
-      // nhưng cứ để cho chắc)
-      // showRpsModal.value = false 
-      // -> Không cần vì gamePhase.value = 'rps' (dòng 46) đã xử lý
+    let myChoice, oppChoice;
 
-      // 4. Kích hoạt component hiệu ứng
-      showRpsAnimation.value = true
+    if (mySymbol === 'X') { // Tôi là P1
+      myChoice = data.player1Choice;
+      oppChoice = data.player2Choice;
+    } else { // Tôi là P2
+      myChoice = data.player2Choice;
+      oppChoice = data.player1Choice;
     }
-  )
-  // 🔼🔼 KẾT THÚC PHẦN THÊM MỚI 🔼🔼
+
+    // 3. Cập nhật ref để truyền cho component hiệu ứng
+    rpsChoices.value = {
+      my: myChoice,
+      opp: oppChoice,
+    }
+
+    // 4. Kích hoạt component hiệu ứng
+    showRpsAnimation.value = true
+  }
+)
+// 🔼🔼 KẾT THÚC PHẦN THAY THẾ 🔼🔼
   // Sửa lỗi "Chơi ngay": Lắng nghe 'room:joined' ở đây
   socketService.getSocket().on("room:joined", (data) => {
     if (data.players) {
