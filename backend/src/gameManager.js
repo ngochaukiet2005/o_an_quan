@@ -176,32 +176,64 @@ export const handleSubmitRps = (io, socket, payload) => {
       return;
     }
 
+    // ===================================================
+    // 🔽 BẮT ĐẦU THAY ĐỔI: GỬI KẾT QUẢ RPS TRƯỚC 🔽
+    // ===================================================
+
     const startingPlayer = room.players.find(p => p.id === rpsState.winnerId);
-    room.status = "playing";
-    room.nextTurnPlayerId = startingPlayer.id;
-
-    room.game.state.currentPlayer = room.players.findIndex(p => p.id === startingPlayer.id) + 1;
-    room.game.state.gameMessage = `Ván đấu bắt đầu. Lượt của ${startingPlayer.name}.`;
-
-    const initialState = room.game.getState();
-    const startData = {
-      players: room.players,
-      startingPlayerId: startingPlayer.id,
-      board: initialState.board,
-      scores: initialState.scores,
-      debt: initialState.debt,
-      roomId: room.id,
-      rpsResult: {
-        p1Choice: rpsState.choices[room.players[0].id],
-        p2Choice: rpsState.choices[room.players[1].id],
-        winnerId: startingPlayer.id,
-      },
-      gameMessage: initialState.gameMessage,
-    };
     
-    io.to(room.id).emit("game_start", startData);
-    room.rpsGame = null;
-    timerManager.start(room);
+    // 1. Tạo payload kết quả
+    const rpsResultData = {
+      result: rpsState.winner, // 'p1' hoặc 'p2'
+      player1Choice: rpsState.choices[room.players[0].id],
+      player2Choice: rpsState.choices[room.players[1].id],
+      message: `${startingPlayer.name} đi trước!`,
+      winnerId: startingPlayer.id // Thêm cả winnerId
+    };
+
+    // 2. Gửi sự kiện 'rpsResult' mà frontend đang lắng nghe
+    io.to(room.id).emit("rpsResult", rpsResultData);
+
+    // 3. ĐẶT THỜI GIAN CHỜ (cho animation) trước khi bắt đầu game
+    setTimeout(() => {
+      // Kiểm tra xem phòng còn tồn tại không (phòng hờ người chơi thoát)
+      if (!rooms.has(room.id)) {
+        console.log(`Phòng ${room.id} đã bị hủy trong khi chờ animation RPS.`);
+        return;
+      }
+
+      console.log(`Bắt đầu game cho phòng ${room.id} sau animation.`);
+
+      // 4. Di chuyển logic bắt đầu game vào đây
+      room.status = "playing";
+      room.nextTurnPlayerId = startingPlayer.id;
+
+      room.game.state.currentPlayer = room.players.findIndex(p => p.id === startingPlayer.id) + 1;
+      room.game.state.gameMessage = `Ván đấu bắt đầu. Lượt của ${startingPlayer.name}.`;
+
+      const initialState = room.game.getState();
+      
+      const startData = {
+        players: room.players,
+        startingPlayerId: startingPlayer.id,
+        board: initialState.board,
+        scores: initialState.scores,
+        debt: initialState.debt,
+        roomId: room.id,
+        // Chúng ta không cần gửi rpsResult trong game_start nữa
+        // vì nó đã được xử lý ở sự kiện 'rpsResult'
+        gameMessage: initialState.gameMessage,
+      };
+      
+      io.to(room.id).emit("game_start", startData);
+      room.rpsGame = null;
+      timerManager.start(room);
+
+    }, 5000); // Đợi 4 giây (bạn có thể chỉnh 3000-5000ms tùy ý)
+
+    // ===================================================
+    // 🔼 KẾT THÚC THAY ĐỔI 🔼
+    // ===================================================
   }
 };
 

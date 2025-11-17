@@ -1,135 +1,124 @@
 <template>
-  <div class="rps-animation-overlay">
-    <div class="hand opp-hand">{{ oppIcon }}</div>
+  <div v-if="show" class="animation-overlay">
+    <div class="choice-container">
+      
+      <div class="choice opponent-choice">
+        <component :is="getChoiceComponent(oppChoice)" />
+      </div>
 
-    <div class="hand my-hand">{{ myIcon }}</div>
+      <div class="choice my-choice">
+        <component :is="getChoiceComponent(myChoice)" />
+      </div>
+
+    </div>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
+import { onMounted, shallowRef } from 'vue'; // <-- Dùng shallowRef
+import RockIcon from './icons/RockIcon.vue';
+import PaperIcon from './icons/PaperIcon.vue';
+import ScissorsIcon from './icons/ScissorsIcon.vue';
 
-// 1. Nhận lựa chọn 'my' (của tôi) và 'opp' (đối thủ)
 const props = defineProps({
-  myChoice: {
-    type: String,
-    required: true, // 'rock', 'paper', 'scissors'
-  },
-  oppChoice: {
-    type: String,
-    required: true,
-  },
-})
+  show: Boolean,
+  myChoice: String,   // 'rock', 'paper', 'scissors'
+  oppChoice: String, // 'rock', 'paper', 'scissors'
+});
 
-// 2. Báo cho GameRoom khi hiệu ứng kết thúc
-const emit = defineEmits(['animation-finished'])
+const emit = defineEmits(['animation-finished']);
 
-// 3. Map để chuyển chữ thành Emoji
-const iconMap = {
-  rock: '✊',
-  paper: '✋',
-  scissors: '✌️',
-}
+// Hàm này trả về component thay vì chuỗi
+const getChoiceComponent = (choice) => {
+  if (choice === 'rock') return shallowRef(RockIcon);
+  if (choice === 'paper') return shallowRef(PaperIcon);
+  if (choice === 'scissors') return shallowRef(ScissorsIcon);
+  return null;
+};
 
-// 4. Tính toán emoji để hiển thị
-const myIcon = computed(() => iconMap[props.myChoice] || '？')
-const oppIcon = computed(() => iconMap[props.oppChoice] || '？')
-
-// 5. Tự động chạy và kết thúc hiệu ứng
+// Tự động kết thúc animation sau 3 giây
 onMounted(() => {
-  // Yêu cầu của bạn là 5 giây
-  setTimeout(() => {
-    emit('animation-finished')
-  }, 5000) // 5 giây
-})
+  if (props.show) {
+    setTimeout(() => {
+      emit('animation-finished');
+    }, 3000); // Phải khớp với thời gian animation CSS
+  }
+});
 </script>
 
 <style scoped>
-.rps-animation-overlay {
+.animation-overlay {
   position: fixed;
   top: 0;
   left: 0;
-  width: 100vw;
-  height: 100vh;
-  background-color: rgba(0, 0, 0, 0.6);
-  z-index: 100;
-  overflow: hidden; /* Rất quan trọng để icon ẩn khi ở ngoài màn hình */
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  overflow: hidden;
+  color: white; /* Đặt màu mặc định cho icon (nếu SVG dùng 'currentColor') */
 }
 
-.hand {
+.choice-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.choice {
   position: absolute;
   left: 50%;
-  font-size: 300px;
-  width: 200px;
-  height: 200px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  
-  /* Thêm hiệu ứng mờ dần khi xuất hiện và biến mất */
-  animation-duration: 5s; /* Tổng thời gian 5s */
-  animation-timing-function: ease-in-out;
-  animation-fill-mode: forwards; /* Giữ trạng thái cuối */
-}
-
-/* Tay của bạn */
-.my-hand {
   transform: translateX(-50%);
-  animation-name: slide-from-bottom;
+
+  /* ĐỊNH KÍCH THƯỚC ICON Ở ĐÂY */
+  /* Dùng 'width' hoặc 'font-size' tùy vào icon của bạn */
+  width: 150px;
+  height: 150px;
+  /* Nếu dùng font-icon, bạn sẽ dùng:
+     font-size: 150px; 
+  */
 }
 
-/* Tay của đối thủ */
-.opp-hand {
-  /* Lật ngược biểu tượng để mô phỏng góc nhìn của đối thủ */
-  transform: translateX(-50%) scaleY(-1);
-  animation-name: slide-from-top;
+/* Animation của bạn */
+.my-choice {
+  animation: move-up 1.5s ease-out forwards;
 }
 
-/* Keyframes cho tay BẠN (dưới lên) */
-@keyframes slide-from-bottom {
-  0% {
-    bottom: -200px; /* Bắt đầu bên dưới màn hình */
+/* Animation của đối thủ */
+.opponent-choice {
+  animation: move-down 1.5s ease-out forwards;
+}
+.opponent-choice :deep(svg) { /* :deep để style vào component con */
+  /* Lật hình ảnh của đối thủ */
+  transform: rotate(180deg);
+}
+
+
+/* Định nghĩa Keyframes (giữ nguyên) */
+@keyframes move-up {
+  from {
+    bottom: -200px;
     opacity: 0;
   }
-  10% {
-    opacity: 1; /* Hiện ra */
-  }
-  40% {
-    /* Di chuyển đến vị trí ngay dưới trung tâm */
-    bottom: calc(50% - 10px); 
+  to {
+    bottom: 50%;
     opacity: 1;
-  }
-  80% {
-    bottom: calc(50% - 10px); /* Giữ nguyên 2 giây */
-    opacity: 1;
-  }
-  100% {
-    bottom: -200px; /* Biến mất */
-    opacity: 0;
+    transform: translateX(-50%) translateY(20px);
   }
 }
 
-/* Keyframes cho tay ĐỐI THỦ (trên xuống) */
-@keyframes slide-from-top {
-  0% {
-    top: -200px; /* Bắt đầu bên trên màn hình */
+@keyframes move-down {
+  from {
+    top: -200px;
     opacity: 0;
   }
-  10% {
-    opacity: 1; /* Hiện ra */
-  }
-  40% {
-    /* Di chuyển đến vị trí ngay trên trung tâm */
-    top: calc(50% - 10px);
+  to {
+    top: 50%;
     opacity: 1;
-  }
-  80% {
-    top: calc(50% - 10px); /* Giữ nguyên 2 giây */
-    opacity: 1;
-  }
-  100% {
-    top: -200px; /* Biến mất */
-    opacity: 0;
+    transform: translateX(-50%) translateY(-170px);
   }
 }
 </style>

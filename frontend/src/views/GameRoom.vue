@@ -156,29 +156,6 @@ function handleStateUpdate(state) {
   if (state.gameMessage) {
     messages.value.push({ senderName: "Hệ thống", message: state.gameMessage });
   }
-
-  // Xử lý tin nhắn kết quả RPS (chỉ chạy 1 lần khi game_start)
-  if (state.rpsResult) {
-    const { p1Choice, p2Choice, winnerId } = state.rpsResult;
-    const p1 = players.value.find((p) => p.symbol === "X");
-    const p2 = players.value.find((p) => p.symbol === "O");
-    
-    if (p1 && p2) {
-      let winnerName = winnerId === p1.id ? p1.name : p2.name;
-      // SỬA LỖI BÚA/KÉO
-      const choiceMap = { rock: "Búa", paper: "Bao", scissors: "Kéo" };
-      rpsResult.value = `${p1.name} chọn ${
-        choiceMap[p1Choice] || p1Choice
-      }, ${p2.name} chọn ${
-        choiceMap[p2Choice] || p2Choice
-      }. ${winnerName} đi trước!`;
-
-      // Tự động xóa tin nhắn sau 5 giây
-      setTimeout(() => {
-        rpsResult.value = null;
-      }, 5000);
-    }
-  }
 }
 
 const onChatReceive = (msg) => {
