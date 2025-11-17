@@ -87,6 +87,7 @@ import NotificationModal from "../components/NotificationModal.vue";
 import RpsModal from "../components/RpsModal.vue"; // <-- IMPORT MODAL MỚI
 import RpsAnimation from '@/components/RpsAnimation.vue'
 const rpsRound = ref(0);
+const animationFinished = ref(false);
 /* ===============================
             STATE
 ================================= */
@@ -128,7 +129,7 @@ function handleStateUpdate(state, forceUpdate = false) {
   console.log("📌 Nhận state:", state);
   // KIỂM TRA QUAN TRỌNG:
   // Nếu animation đang chạy, hãy lưu state lại và chờ
-  if (gamePhase.value === 'animation' && !forceUpdate) {
+  if (gamePhase.value === 'animation' && !animationFinished.value && !forceUpdate) {
     console.log("Animation đang chạy, tạm hoãn cập nhật state.");
     pendingGameState.value = state;
     return; // Dừng, không làm gì thêm cho đến khi animation xong
@@ -180,6 +181,7 @@ function onStartRps(data) {
   isRpsRetry.value = data.isRetry;
   gamePhase.value = "rps";
   rpsRound.value++;
+  animationFinished.value = false;
 }
 
 function onTimerStart(data) {
@@ -375,6 +377,9 @@ function sendMessage(text) {
 // HÀM ĐÃ SỬA
 // HÀM ĐÃ SỬA
 function handleRpsAnimationEnd() {
+  console.log("GameRoom.vue: ĐÃ BẮT ĐƯỢC SỰ KIỆN 'animation-finished'!");
+  // 1. Đánh dấu là animation đã kết thúc
+  animationFinished.value = true;
   // 1. Lấy data kết quả đã lưu
   if (rpsResultData.value) {
     const { message, player1Choice, player2Choice } = rpsResultData.value;
