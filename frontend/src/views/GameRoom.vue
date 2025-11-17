@@ -48,7 +48,7 @@
     </div>
 
     <RpsModal
-      :show="gamePhase === 'rps'"
+      :key="rpsRound" :show="gamePhase === 'rps'"
       :is-retry="isRpsRetry"
       @choose="handleRpsChoice"
     />
@@ -87,7 +87,7 @@ import DirectionModal from "../components/DirectionModal.vue";
 import NotificationModal from "../components/NotificationModal.vue";
 import RpsModal from "../components/RpsModal.vue"; // <-- IMPORT MODAL MỚI
 import RpsAnimation from '@/components/RpsAnimation.vue'
-
+const rpsRound = ref(0);
 /* ===============================
             STATE
 ================================= */
@@ -203,6 +203,7 @@ const onKicked = (data) => {
 function onStartRps(data) {
   isRpsRetry.value = data.isRetry;
   gamePhase.value = "rps";
+  rpsRound.value++;
 }
 
 function onTimerStart(data) {
