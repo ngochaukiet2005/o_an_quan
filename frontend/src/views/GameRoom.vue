@@ -252,7 +252,7 @@ function setupSocketListeners() {
   socketService.getSocket().on("kicked_to_menu", onKicked);
   
   // 🔽🔽 THÊM VÀO ĐÂY 🔽🔽
-  socketService.on(
+  socketService.getSocket().on(
     'rpsResult',
     (data) => {
       // data = { result, player1Choice, player2Choice, message }
