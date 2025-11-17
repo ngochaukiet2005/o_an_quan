@@ -2,24 +2,17 @@
   <div class="animation-overlay">
     <div class="choice-container">
       
-      <div class="choice opponent-choice">
-        <component :is="getChoiceComponent(oppChoice)" />
       </div>
-
-      <div class="choice my-choice">
-        <component :is="getChoiceComponent(myChoice)" />
-      </div>
-
-    </div>
   </div>
 </template>
 
 <script setup>
-// 🔽 BƯỚC 1: Xóa 'shallowRef' khỏi import
 import { onMounted } from 'vue'; 
-import RockIcon from './icons/RockIcon.vue';
-import PaperIcon from './icons/PaperIcon.vue';
-import ScissorsIcon from './icons/ScissorsIcon.vue';
+
+// <--- VÔ HIỆU HÓA 3 DÒNG IMPORT GÂY LỖI --->
+// import RockIcon from './icons/RockIcon.vue';
+// import PaperIcon from './icons/PaperIcon.vue';
+// import ScissorsIcon from './icons/ScissorsIcon.vue';
 
 const props = defineProps({
   myChoice: String,
@@ -28,24 +21,26 @@ const props = defineProps({
 
 const emit = defineEmits(['animation-finished']);
 
-// 🔽 BƯỚC 2: Trả về component trực tiếp, KHÔNG DÙNG shallowRef
-const getChoiceComponent = (choice) => {
-  if (choice === 'rock') return RockIcon;
-  if (choice === 'paper') return PaperIcon;
-  if (choice === 'scissors') return ScissorsIcon;
-  return null;
-};
-// 🔼 KẾT THÚC SỬA LỖI
+// <--- HÀM NÀY GIỜ KHÔNG QUAN TRỌNG VÌ ĐÃ BỊ VÔ HIỆU HÓA Ở TRÊN --->
+// const getChoiceComponent = (choice) => {
+//   if (choice === 'rock') return RockIcon;
+//   if (choice === 'paper') return PaperIcon;
+//   if (choice === 'scissors') return ScissorsIcon;
+//   return null;
+// };
 
 // onMounted sẽ chạy khi component được hiển thị
 onMounted(() => {
+  console.log("RpsAnimation.vue: Đã mount! Bắt đầu đếm 3 giây."); // <--- Thêm log
   setTimeout(() => {
+    console.log("RpsAnimation.vue: 3 giây kết thúc! Gửi animation-finished."); // <--- Thêm log
     emit('animation-finished');
   }, 3000); // Đợi 3 giây cho animation
 });
 </script>
 
 <style scoped>
+/* CSS giữ nguyên như cũ */
 .animation-overlay {
   position: fixed;
   top: 0;
@@ -74,21 +69,15 @@ onMounted(() => {
   width: 150px;
   height: 150px;
 }
-
-/* Animation của bạn */
 .my-choice {
   animation: move-up 1.5s ease-out forwards;
 }
-
-/* Animation của đối thủ */
 .opponent-choice {
   animation: move-down 1.5s ease-out forwards;
 }
 .opponent-choice :deep(svg) { 
   transform: rotate(180deg);
 }
-
-/* Keyframes giữ nguyên */
 @keyframes move-up {
   from {
     bottom: -200px;
@@ -100,7 +89,6 @@ onMounted(() => {
     transform: translateX(-50%) translateY(20px);
   }
 }
-
 @keyframes move-down {
   from {
     top: -200px;
