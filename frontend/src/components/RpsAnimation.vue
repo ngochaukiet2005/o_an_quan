@@ -1,5 +1,5 @@
 <template>
-  <div v-if="show" class="animation-overlay">
+  <div class="animation-overlay">
     <div class="choice-container">
       
       <div class="choice opponent-choice">
@@ -15,20 +15,20 @@
 </template>
 
 <script setup>
-import { onMounted, shallowRef } from 'vue'; // <-- Dùng shallowRef
+import { onMounted, shallowRef } from 'vue';
+// Đảm bảo đường dẫn này đúng với cấu trúc thư mục của bạn
 import RockIcon from './icons/RockIcon.vue';
 import PaperIcon from './icons/PaperIcon.vue';
 import ScissorsIcon from './icons/ScissorsIcon.vue';
 
 const props = defineProps({
-  show: Boolean,
+  // XÓA 'show: Boolean' khỏi đây
   myChoice: String,   // 'rock', 'paper', 'scissors'
   oppChoice: String, // 'rock', 'paper', 'scissors'
 });
 
 const emit = defineEmits(['animation-finished']);
 
-// Hàm này trả về component thay vì chuỗi
 const getChoiceComponent = (choice) => {
   if (choice === 'rock') return shallowRef(RockIcon);
   if (choice === 'paper') return shallowRef(PaperIcon);
@@ -36,13 +36,12 @@ const getChoiceComponent = (choice) => {
   return null;
 };
 
-// Tự động kết thúc animation sau 3 giây
+// onMounted sẽ CHỈ CHẠY khi component được hiển thị (do v-if ở cha)
 onMounted(() => {
-  if (props.show) {
-    setTimeout(() => {
-      emit('animation-finished');
-    }, 3000); // Phải khớp với thời gian animation CSS
-  }
+  // XÓA 'if (props.show)'
+  setTimeout(() => {
+    emit('animation-finished');
+  }, 3000); // Đợi 3 giây cho animation (bạn có thể đổi thời gian này)
 });
 </script>
 
@@ -74,12 +73,8 @@ onMounted(() => {
   transform: translateX(-50%);
 
   /* ĐỊNH KÍCH THƯỚC ICON Ở ĐÂY */
-  /* Dùng 'width' hoặc 'font-size' tùy vào icon của bạn */
   width: 150px;
   height: 150px;
-  /* Nếu dùng font-icon, bạn sẽ dùng:
-     font-size: 150px; 
-  */
 }
 
 /* Animation của bạn */
