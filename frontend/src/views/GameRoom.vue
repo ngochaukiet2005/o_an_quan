@@ -65,6 +65,12 @@
       :message="gameOverMessage"
       @close="goToHome"
     />
+    <RpsAnimation
+      v-if="showRpsAnimation"
+      :player1Choice="rpsChoices.p1"
+      :player2Choice="rpsChoices.p2"
+      @animation-finished="handleRpsAnimationEnd"
+    />
   </div>
 </template>
 
@@ -80,6 +86,7 @@ import GameBoard from "../components/GameBoard.vue";
 import DirectionModal from "../components/DirectionModal.vue";
 import NotificationModal from "../components/NotificationModal.vue";
 import RpsModal from "../components/RpsModal.vue"; // <-- IMPORT MODAL MỚI
+import RpsAnimation from '@/components/RpsAnimation.vue'
 
 /* ===============================
             STATE
@@ -98,6 +105,9 @@ const isRpsRetry = ref(false);
 const rpsResult = ref(null); // Lưu tin nhắn kết quả RPS
 const timerValue = ref(null);
 const timerInterval = ref(null);
+const showRpsAnimation = ref(false)
+const rpsChoices = ref({ p1: null, p2: null })
+const rpsResultData = ref(null) // Dùng để lưu kết quả trong khi chờ hiệu ứng
 // --- State cũ ---
 const players = ref([]);
 const board = ref([]);
@@ -241,6 +251,33 @@ function setupSocketListeners() {
   socketService.getSocket().on("error", onError);
   socketService.getSocket().on("kicked_to_menu", onKicked);
   
+  // 🔽🔽 THÊM VÀO ĐÂY 🔽🔽
+  socketService.on(
+    'rpsResult',
+    (data) => {
+      // data = { result, player1Choice, player2Choice, message }
+      console.log('RPS Result:', data)
+
+      // 1. Lưu lại data kết quả để dùng sau khi hiệu ứng chạy xong
+      rpsResultData.value = data
+
+      // 2. Lưu lựa chọn để truyền vào component hiệu ứng
+      rpsChoices.value = {
+        p1: data.player1Choice,
+        p2: data.player2Choice,
+      }
+
+      // 3. Ẩn modal chọn oẳn tù tì
+      // (Dòng này có thể không cần thiết nếu 'gamePhase' đã đổi,
+      // nhưng cứ để cho chắc)
+      // showRpsModal.value = false 
+      // -> Không cần vì gamePhase.value = 'rps' (dòng 46) đã xử lý
+
+      // 4. Kích hoạt component hiệu ứng
+      showRpsAnimation.value = true
+    }
+  )
+  // 🔼🔼 KẾT THÚC PHẦN THÊM MỚI 🔼🔼
   // Sửa lỗi "Chơi ngay": Lắng nghe 'room:joined' ở đây
   socketService.getSocket().on("room:joined", (data) => {
     if (data.players) {
@@ -338,6 +375,41 @@ const goToHome = () => {
 
 function sendMessage(text) {
   socketService.sendMessage(roomId.value, playerName.value, text);
+}
+/**
+ * Được gọi khi component RpsAnimation chạy xong hiệu ứng.
+ */
+// HÀM ĐÃ SỬA
+function handleRpsAnimationEnd() {
+  // 1. Ẩn component hiệu ứng
+  showRpsAnimation.value = false;
+
+  // 2. Lấy data kết quả đã lưu
+  if (rpsResultData.value) {
+    const { message, player1Choice, player2Choice } = rpsResultData.value;
+
+    // 3. Tìm tên người chơi (logic này đã có ở hàm handleStateUpdate)
+    const p1 = players.value.find((p) => p.symbol === "X");
+    const p2 = players.value.find((p) => p.symbol === "O");
+    const p1Name = p1 ? p1.name : "Người chơi 1";
+    const p2Name = p2 ? p2.name : "Người chơi 2";
+    const choiceMap = { rock: "Búa", paper: "Bao", scissors: "Kéo" };
+
+    // 4. Cập nhật ref 'rpsResult' (đã có sẵn trong template)
+    rpsResult.value = `${p1Name} chọn ${
+      choiceMap[player1Choice] || player1Choice
+    }, ${p2Name} chọn ${
+      choiceMap[player2Choice] || p2Choice
+    }. ${message}`; // 'message' từ server đã chứa tên người thắng
+
+    // 5. Xóa data tạm
+    rpsResultData.value = null;
+
+    // 6. Tự động xóa tin nhắn sau 5 giây (giống như logic cũ)
+    setTimeout(() => {
+      rpsResult.value = null;
+    }, 5000);
+  }
 }
 </script>
 
