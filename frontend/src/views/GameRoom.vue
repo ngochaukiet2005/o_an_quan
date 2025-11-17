@@ -258,42 +258,42 @@ function setupSocketListeners() {
   socketService.getSocket().on("error", onError);
   socketService.getSocket().on("kicked_to_menu", onKicked);
   
-  // 🔽🔽 THÊM VÀO ĐÂY 🔽🔽
-  // 🔽🔽 SỬA LẠI HOÀN TOÀN LISTENER NÀY 🔽🔽
-socketService.getSocket().on(
-  'rpsResult',
-  (data) => {
-    // data = { result, player1Choice, player2Choice, message }
-    console.log('RPS Result:', data)
+  // 🔽🔽 THAY THẾ HOÀN TOÀN LISTENER CŨ 🔽🔽
+  socketService.getSocket().on( // <--- (SỬA 1: Đã thêm .getSocket())
+    'rpsResult',
+    (data) => {
+      // data = { result, player1Choice, player2Choice, message }
+      console.log('RPS Result:', data)
 
-    // 1. Lưu data để dùng sau khi hiệu ứng xong
-    rpsResultData.value = data
+      // 1. Lưu data để dùng sau khi hiệu ứng xong
+      rpsResultData.value = data
 
-    // 2. TÍNH TOÁN "TÔI" VÀ "ĐỐI THỦ"
-    const me = players.value.find((p) => p.id === playerId.value);
-    const mySymbol = me ? me.symbol : "X"; // Mặc định là P1 nếu không tìm thấy
+      // 2. (SỬA 2: Tính toán "tôi" và "đối thủ")
+      const me = players.value.find((p) => p.id === playerId.value);
+      // Giả sử P1 là 'X' nếu không tìm thấy 'me' (phòng trường hợp)
+      const mySymbol = me ? me.symbol : "X"; 
 
-    let myChoice, oppChoice;
+      let myChoice, oppChoice;
 
-    if (mySymbol === 'X') { // Tôi là P1
-      myChoice = data.player1Choice;
-      oppChoice = data.player2Choice;
-    } else { // Tôi là P2
-      myChoice = data.player2Choice;
-      oppChoice = data.player1Choice;
-    }
+      if (mySymbol === 'X') { // Tôi là P1
+        myChoice = data.player1Choice;
+        oppChoice = data.player2Choice;
+      } else { // Tôi là P2
+        myChoice = data.player2Choice;
+        oppChoice = data.player1Choice;
+      }
+      
+      // 3. Cập nhật ref để truyền cho component hiệu ứng
+      rpsChoices.value = {
+        my: myChoice,
+        opp: oppChoice,
+      }
 
-    // 3. Cập nhật ref để truyền cho component hiệu ứng
-    rpsChoices.value = {
-      my: myChoice,
-      opp: oppChoice,
-    }
-
-    // 4. Kích hoạt component hiệu ứng
-    showRpsAnimation.value = true
-  }
-)
-// 🔼🔼 KẾT THÚC PHẦN THAY THẾ 🔼🔼
+      // 4. Kích hoạt component hiệu ứng
+      showRpsAnimation.value = true
+    }
+  )
+  // 🔼🔼 KẾT THÚC PHẦN THAY THẾ 🔼🔼
   // Sửa lỗi "Chơi ngay": Lắng nghe 'room:joined' ở đây
   socketService.getSocket().on("room:joined", (data) => {
     if (data.players) {
@@ -432,6 +432,13 @@ function handleRpsAnimationEnd() {
   if (pendingGameState.value) {
     console.log("Animation kết thúc, áp dụng state game đang chờ.");
     handleStateUpdate(pendingGameState.value);
+    pendingGameState.value = null; // Xóa state chờ
+  }
+  // 7. ✅ KÍCH HOẠT STATE GAME ĐANG CHỜ
+  if (pendingGameState.value) {
+    console.log("Animation kết thúc, áp dụng state game đang chờ.");
+    // Bây giờ mới gọi handleStateUpdate để vẽ bàn cờ
+    handleStateUpdate(pendingGameState.value); 
     pendingGameState.value = null; // Xóa state chờ
   }
 }
