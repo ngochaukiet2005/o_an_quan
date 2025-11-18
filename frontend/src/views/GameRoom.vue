@@ -85,66 +85,186 @@ import PlayerInfo from "../components/PlayerInfo.vue";
 import GameBoard from "../components/GameBoard.vue";
 import DirectionModal from "../components/DirectionModal.vue";
 import NotificationModal from "../components/NotificationModal.vue";
-import RpsModal from "../components/RpsModal.vue"; // <-- IMPORT MODAL MỚI
-import RpsAnimation from '@/components/RpsAnimation.vue'
-const rpsRound = ref(0);
-const animationFinished = ref(false);
-/* ===============================
-            STATE
-================================= */
+import RpsModal from "../components/RpsModal.vue";
+import RpsAnimation from '@/components/RpsAnimation.vue';
 
+// ===============================
+//           STATE
+// ===============================
 const route = useRoute();
 const router = useRouter();
 
+// Thông tin phòng & người chơi
 const roomId = computed(() => route.params.roomId);
 const playerName = computed(() => route.query.playerName);
 const playerId = socketService.getSocketIdReactive();
+
+// Ref tới Component con
 const gameBoardRef = ref(null);
-// --- State mới ---
-const gamePhase = ref("loading"); // 'loading', 'rps', 'playing', 'game_over'
-const isRpsRetry = ref(false);
-const rpsResult = ref(null); // Lưu tin nhắn kết quả RPS
-const timerValue = ref(null);
-const timerInterval = ref(null);
-const showRpsAnimation = ref(false)
-const rpsChoices = ref({ my: null, opp: null })
-const rpsResultData = ref(null) // Dùng để lưu kết quả trong khi chờ hiệu ứng
-const pendingGameState = ref(null);
-// --- State cũ ---
+
+// State Game Logic
 const players = ref([]);
 const board = ref([]);
 const currentTurnId = ref(null);
 const messages = ref([]);
+const gamePhase = ref("loading");
+
+// State Oẳn tù tì (RPS)
+const rpsRound = ref(0);
+const isRpsRetry = ref(false);
+const rpsResult = ref(null);
+const showRpsAnimation = ref(false);
+const rpsChoices = ref({ my: null, opp: null });
+const rpsResultData = ref(null);
+const animationFinished = ref(false);
+const pendingGameState = ref(null); 
+
+// State Timer & Animation Control
+const timerValue = ref(null);
+const timerInterval = ref(null);
+const isAnimating = ref(false); // Kiểm soát xem có đang diễn hoạt không
+const pendingTimerData = ref(null); // Lưu timer của lượt sau nếu đang diễn hoạt
+
+// State Modal
 const showDirectionModal = ref(false);
 const selectedCellIndex = ref(null);
 const showGameOverModal = ref(false);
 const gameOverTitle = ref("");
 const gameOverMessage = ref("");
 
-/* ===============================
-        HÀM XỬ LÝ SỰ KIỆN
-================================= */
+// ===============================
+//        SOCKET LISTENERS
+// ===============================
 
-// Xử lý khi nhận state (từ 'game_start' hoặc 'update_game_state')
-function handleStateUpdate(state, forceUpdate = false) {
-  console.log("📌 Nhận state:", state);
-  // KIỂM TRA QUAN TRỌNG:
-  // Nếu animation đang chạy, hãy lưu state lại và chờ
-  if (gamePhase.value === 'animation' && !animationFinished.value && !forceUpdate) {
-    console.log("Animation đang chạy, tạm hoãn cập nhật state.");
-    pendingGameState.value = state;
-    return; // Dừng, không làm gì thêm cho đến khi animation xong
-  }
-  gamePhase.value = "playing"; // Chuyển sang trạng thái chơi game
+function setupSocketListeners() {
+  socketService.offAll();
+  const socket = socketService.getSocket();
 
-  if (state.board) {
-    board.value = state.board;
-  }
+  // 1. Xử lý nhận State Game
+  const onGameStateHandler = async (data) => {
+    console.log("📥 Nhận game state:", data);
+
+    if (data.moveHistory && data.moveHistory.length > 0) {
+      
+      if (gamePhase.value === 'animation' && !animationFinished.value) {
+        pendingGameState.value = data;
+        return;
+      }
+
+      if (gameBoardRef.value) {
+        // BẮT ĐẦU DIỄN HOẠT
+        isAnimating.value = true;
+        console.log("🎬 Bắt đầu diễn hoạt...");
+        
+        // Chạy animation (await đợi cho đến khi xong hết)
+        await gameBoardRef.value.runMoveAnimation(data.moveHistory);
+        
+        // KẾT THÚC DIỄN HOẠT
+        isAnimating.value = false;
+        console.log("✅ Diễn hoạt xong.");
+        
+        // Nếu có timer của lượt sau đang chờ, giờ mới cho hiện lên
+        if (pendingTimerData.value) {
+            console.log("⏰ Kích hoạt timer lượt mới (sau khi animation xong)");
+            startTimerCountDown(pendingTimerData.value);
+            pendingTimerData.value = null;
+        }
+      }
+    }
+
+    // Cập nhật dữ liệu bàn cờ chính thức
+    handleStateUpdate(data);
+  };
+
+  socket.on("game_start", onGameStateHandler);
+  socket.on("update_game_state", onGameStateHandler);
+
+  // 2. Xử lý Timer
+  socket.on("timer:start", (data) => {
+    // QUAN TRỌNG: Nếu đang có animation chạy, TUYỆT ĐỐI KHÔNG hiện đồng hồ
+    if (isAnimating.value) {
+        console.log("⏳ Đang animation, hoãn hiển thị timer...");
+        pendingTimerData.value = data; // Lưu lại để dùng sau
+    } else {
+        startTimerCountDown(data); // Không vướng gì thì hiện luôn
+    }
+  });
+
+  socket.on("timer:clear", () => {
+    clearInterval(timerInterval.value);
+    timerValue.value = null;
+    pendingTimerData.value = null;
+  });
+
+  // 3. Các sự kiện khác (RPS, Chat, Join, Over)
+  socket.on("game:start_rps", (data) => {
+    isRpsRetry.value = data.isRetry;
+    gamePhase.value = "rps";
+    rpsRound.value++;
+    animationFinished.value = false;
+  });
+
+  socket.on("rpsResult", (data) => {
+    rpsResultData.value = data; 
+    const myId = playerId.value;
+    if (myId === data.player1Id) {
+      rpsChoices.value = { my: data.player1Choice, opp: data.player2Choice };
+    } else if (myId === data.player2Id) {
+      rpsChoices.value = { my: data.player2Choice, opp: data.player1Choice };
+    } else {
+      rpsChoices.value = { my: data.player1Choice, opp: data.player2Choice };
+    }
+    gamePhase.value = 'animation'; 
+  });
+
+  socket.on("game_over", onGameOver);
+  socket.on("chat:receive", (msg) => messages.value.push(msg));
+  
+  socket.on("room:player-joined", (data) => {
+    messages.value.push({ senderName: "Hệ thống", message: `${data.name} đã vào phòng.` });
+  });
+  
+  socket.on("room:joined", (data) => {
+    if (data.players) {
+        players.value = data.players.map(p => ({ ...p, score: p.score || 0 }));
+    }
+  });
+
+  socket.on("error", (err) => alert(err.message));
+  socket.on("kicked_to_menu", (data) => {
+    alert(data.message);
+    router.push("/play");
+  });
+}
+
+// ===============================
+//      LOGIC TIMER
+// ===============================
+function startTimerCountDown(data) {
+    clearInterval(timerInterval.value);
+    timerValue.value = data.duration;
+    timerInterval.value = setInterval(() => {
+      if (timerValue.value !== null && timerValue.value > 0) {
+        timerValue.value--;
+      } else {
+        clearInterval(timerInterval.value);
+        timerValue.value = 0;
+      }
+    }, 1000);
+}
+
+// ===============================
+//      LOGIC CẬP NHẬT UI
+// ===============================
+
+function handleStateUpdate(state) {
+  gamePhase.value = "playing";
+
+  if (state.board) board.value = state.board;
 
   if (state.players && state.scores) {
     players.value = state.players.map((p) => {
-      const scoreData =
-        p.symbol === "X" ? state.scores.player1 : state.scores.player2;
+      const scoreData = p.symbol === "X" ? state.scores.player1 : state.scores.player2;
       return {
         ...p,
         score: scoreData ? scoreData.quan * 5 + scoreData.dan : 0,
@@ -159,51 +279,41 @@ function handleStateUpdate(state, forceUpdate = false) {
   }
 }
 
-const onChatReceive = (msg) => {
-  messages.value.push(msg);
-};
-const onPlayerJoined = (data) => {
-  messages.value.push({
-    senderName: "Hệ thống",
-    message: `${data.name} đã vào phòng.`,
-  });
-};
-const onError = (err) => {
-  alert(err.message);
-  console.error(err.message);
-};
-const onKicked = (data) => {
-  alert(data.message);
-  router.push("/play");
-};
+function handleRpsAnimationEnd() {
+  animationFinished.value = true;
 
-// --- HÀM MỚI CHO LOGIC MỚI ---
-function onStartRps(data) {
-  isRpsRetry.value = data.isRetry;
-  gamePhase.value = "rps";
-  rpsRound.value++;
-  animationFinished.value = false;
-}
+  if (rpsResultData.value) {
+    const { message, player1Choice, player2Choice } = rpsResultData.value;
+    const p1 = players.value.find((p) => p.symbol === "X");
+    const p2 = players.value.find((p) => p.symbol === "O");
+    const map = { rock: "Búa", paper: "Bao", scissors: "Kéo" };
+    
+    rpsResult.value = `${p1?.name} ra ${map[player1Choice]}, ${p2?.name} ra ${map[player2Choice]}. ${message}`;
+    rpsResultData.value = null;
 
-function onTimerStart(data) {
-  clearInterval(timerInterval.value);
-  timerValue.value = data.duration;
+    setTimeout(() => { rpsResult.value = null; }, 5000);
+  }
 
-  timerInterval.value = setInterval(() => {
-    if (timerValue.value !== null && timerValue.value > 0) {
-      timerValue.value--;
-    } else {
-      clearInterval(timerInterval.value);
-      timerValue.value = 0; // Hiển thị 0s trước khi server tự chuyển
+  if (pendingGameState.value) {
+    if (gameBoardRef.value && pendingGameState.value.moveHistory) {
+         isAnimating.value = true;
+         gameBoardRef.value.runMoveAnimation(pendingGameState.value.moveHistory)
+            .then(() => {
+                isAnimating.value = false;
+                if (pendingTimerData.value) {
+                    startTimerCountDown(pendingTimerData.value);
+                    pendingTimerData.value = null;
+                }
+            });
     }
-  }, 1000);
+    handleStateUpdate(pendingGameState.value);
+    pendingGameState.value = null;
+  }
 }
 
-function onTimerClear() {
-  clearInterval(timerInterval.value);
-  timerValue.value = null;
-}
-// -----------------------------
+// ===============================
+//       ACTIONS / HANDLERS
+// ===============================
 
 function resetState() {
   board.value = [];
@@ -213,119 +323,15 @@ function resetState() {
   showDirectionModal.value = false;
   selectedCellIndex.value = null;
   showGameOverModal.value = false;
-
-  // Reset state mới
   clearInterval(timerInterval.value);
   timerValue.value = null;
   gamePhase.value = "loading";
   isRpsRetry.value = false;
   rpsResult.value = null;
-}
-function handleAnimateEvent(data) {
-  console.log("⚡ Kích hoạt Animation:", data);
-  if (gameBoardRef.value) {
-    // Gọi hàm animateMove bên trong GameBoard
-    gameBoardRef.value.animateMove(data.cellIndex, data.direction, data.count);
-  }
-}
-function setupSocketListeners() {
-  socketService.offAll();
-
-  socketService.getSocket().on("game:start_rps", onStartRps);
-  socketService.getSocket().on("game_start", handleStateUpdate);
-  socketService.getSocket().on("update_game_state", handleStateUpdate);
-
-  socketService.getSocket().on("timer:start", onTimerStart);
-  socketService.getSocket().on("timer:clear", onTimerClear);
-
-  socketService.getSocket().on("game_over", onGameOver);
-  socketService.getSocket().on("chat:receive", onChatReceive);
-  socketService.getSocket().on("room:player-joined", onPlayerJoined);
-  socketService.getSocket().on("error", onError);
-  socketService.getSocket().on("kicked_to_menu", onKicked);
-  //.
-  // 🔽🔽 THAY THẾ HOÀN TOÀN LISTENER CŨ 🔽🔽
-  socketService.getSocket().on( // <--- (SỬA 1: Đã thêm .getSocket())
-    'rpsResult',
-    (data) => {
-      // data = { result, player1Choice, player2Choice, message }
-      console.log('RPS Result:', data)
-
-      // 1. Lưu data để dùng sau khi hiệu ứng xong
-      rpsResultData.value = data
-      // Lấy ID của chính mình hiện tại
-      const myId = playerId.value;
-      let myChoice, oppChoice;
-      // So sánh ID của mình với ID từ Server gửi về
-      if (myId === data.player1Id) { 
-        // Nếu mình là Player 1
-        myChoice = data.player1Choice;
-        oppChoice = data.player2Choice;
-      } else if (myId === data.player2Id) { 
-        // Nếu mình là Player 2
-        myChoice = data.player2Choice;
-        oppChoice = data.player1Choice;
-      } else {
-        // Trường hợp khán giả (hoặc lỗi), mặc định hiển thị theo góc nhìn P1
-        myChoice = data.player1Choice;
-        oppChoice = data.player2Choice;
-      }
-      
-      rpsChoices.value = {
-        my: myChoice,
-        opp: oppChoice,
-      }
-
-      gamePhase.value = 'animation'
-    }
-  )
-  // 🔼🔼 KẾT THÚC PHẦN THAY THẾ 🔼🔼
-  // Sửa lỗi "Chơi ngay": Lắng nghe 'room:joined' ở đây
-  socketService.getSocket().on("room:joined", (data) => {
-    if (data.players) {
-      players.value = data.players.map(p => ({...p, score: 0}));
-    }
-  });
-  socketService.onAnimate(handleAnimateEvent);
+  isAnimating.value = false;
+  pendingTimerData.value = null;
 }
 
-/* ===============================
-        VÒNG ĐỜI (LIFECYCLE)
-================================= */
-
-onMounted(() => {
-  resetState();
-  setupSocketListeners();
-  socketService.requestGameState(roomId.value);
-});
-
-onBeforeUnmount(() => {
-  socketService.leaveRoom();
-  socketService.offAll();
-});
-
-watch(roomId, (newRoomId, oldRoomId) => {
-  if (newRoomId && newRoomId !== oldRoomId) {
-    resetState();
-    setupSocketListeners();
-    socketService.requestGameState(newRoomId);
-  }
-});
-
-/* ===============================
-        USER ACTIONS
-================================= */
-
-function onLeaveRoomClick() {
-  const confirmed = confirm(
-    "Bạn chắc chắn muốn rời phòng? Bạn sẽ bị xử thua."
-  );
-  if (confirmed) {
-    router.push("/play");
-  }
-}
-
-// (HÀM MỚI) Gửi lựa chọn Oẳn tù tì
 function handleRpsChoice(choice) {
   socketService.submitRps(roomId.value, choice);
 }
@@ -341,94 +347,74 @@ function handleMove(index) {
 
 function onDirectionChosen(direction) {
   showDirectionModal.value = false;
-  if (selectedCellIndex.value === null || !direction) {
-    return;
-  }
+  if (selectedCellIndex.value === null || !direction) return;
   
+  // 1. Gửi nước đi lên server
   socketService.makeMove(roomId.value, {
     cellIndex: selectedCellIndex.value,
     direction: direction,
   });
+
+  // 2. TẮT NGAY ĐỒNG HỒ CỦA MÌNH (Người chơi thoải mái xem animation)
+  clearInterval(timerInterval.value);
+  timerValue.value = null;
+
   selectedCellIndex.value = null;
 }
-
-const onGameOver = (data) => {
-  gamePhase.value = "game_over"; // Dừng game
-  onTimerClear(); // Xóa timer
-
-  console.log("Game Over:", data);
-  let winnerName = "Hòa!";
-
-  const p1 = players.value.find((p) => p.symbol === "X");
-  const p2 = players.value.find((p) => p.symbol === "O");
-  const p1Name = p1 ? p1.name : "Người chơi 1";
-  const p2Name = p2 ? p2.name : "Người chơi 2";
-
-  if (p1 && data.winner === p1.id) winnerName = `${p1Name} thắng!`;
-  if (p2 && data.winner === p2.id) winnerName = `${p2Name} thắng!`;
-
-  gameOverTitle.value = winnerName;
-  gameOverMessage.value = `${data.gameMessage} | Điểm cuối: ${p1Name} (${data.finalScores.player1}) - ${p2Name} (${data.finalScores.player2})`;
-  showGameOverModal.value = true;
-};
-
-const goToHome = () => {
-  router.push("/");
-};
 
 function sendMessage(text) {
   socketService.sendMessage(roomId.value, playerName.value, text);
 }
-/**
- * Được gọi khi component RpsAnimation chạy xong hiệu ứng.
- */
-// HÀM ĐÃ SỬA
-// HÀM ĐÃ SỬA
-function handleRpsAnimationEnd() {
-  console.log("GameRoom.vue: ĐÃ BẮT ĐƯỢC SỰ KIỆN 'animation-finished'!");
-  // 1. Đánh dấu là animation đã kết thúc
-  animationFinished.value = true;
-  // 1. Lấy data kết quả đã lưu
-  if (rpsResultData.value) {
-    const { message, player1Choice, player2Choice } = rpsResultData.value;
 
-    // 2. Tìm tên người chơi
-    const p1 = players.value.find((p) => p.symbol === "X");
-    const p2 = players.value.find((p) => p.symbol === "O");
-    const p1Name = p1 ? p1.name : "Người chơi 1";
-    const p2Name = p2 ? p2.name : "Người chơi 2";
-    const choiceMap = { rock: "Búa", paper: "Bao", scissors: "Kéo" };
+function onGameOver(data) {
+  gamePhase.value = "game_over";
+  clearInterval(timerInterval.value);
+  
+  const p1 = players.value.find((p) => p.symbol === "X");
+  const p2 = players.value.find((p) => p.symbol === "O");
+  let winnerName = "Hòa!";
+  
+  if (p1 && data.winner === p1.id) winnerName = `${p1.name} thắng!`;
+  if (p2 && data.winner === p2.id) winnerName = `${p2.name} thắng!`;
 
-    // 3. Cập nhật ref 'rpsResult' để hiển thị tin nhắn
-    rpsResult.value = `${p1Name} chọn ${
-      choiceMap[player1Choice] || player1Choice
-    }, ${p2Name} chọn ${
-      choiceMap[player2Choice] || player2Choice
-    }. ${message}`; 
+  gameOverTitle.value = winnerName;
+  gameOverMessage.value = `${data.gameMessage}`;
+  showGameOverModal.value = true;
+}
 
-    // 4. Xóa data tạm
-    rpsResultData.value = null;
-
-    // 5. Tự động xóa tin nhắn sau 5 giây
-    setTimeout(() => {
-      rpsResult.value = null;
-    }, 5000);
-  }
-
-  // 3. (QUAN TRỌNG) Kích hoạt state game đang chờ
-  if (pendingGameState.value) {
-    console.log("Animation kết thúc, áp dụng state game đang chờ.");
-    handleStateUpdate(pendingGameState.value);
-    pendingGameState.value = null; // Xóa state chờ
-  }
-  // 7. ✅ KÍCH HOẠT STATE GAME ĐANG CHỜ
-  if (pendingGameState.value) {
-    console.log("Animation kết thúc, áp dụng state game đang chờ.");
-    // Bây giờ mới gọi handleStateUpdate để vẽ bàn cờ
-    handleStateUpdate(pendingGameState.value, true); 
-    pendingGameState.value = null; // Xóa state chờ
+function onLeaveRoomClick() {
+  if (confirm("Bạn muốn rời phòng? Sẽ bị xử thua.")) {
+    router.push("/play");
   }
 }
+
+function goToHome() {
+  router.push("/");
+}
+
+// ===============================
+//        LIFECYCLE
+// ===============================
+
+onMounted(() => {
+  resetState();
+  setupSocketListeners();
+  socketService.requestGameState(roomId.value);
+});
+
+onBeforeUnmount(() => {
+  socketService.leaveRoom();
+  socketService.offAll();
+  clearInterval(timerInterval.value);
+});
+
+watch(roomId, (newId, oldId) => {
+  if (newId && newId !== oldId) {
+    resetState();
+    setupSocketListeners();
+    socketService.requestGameState(newId);
+  }
+});
 </script>
 
 <style scoped>

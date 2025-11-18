@@ -16,14 +16,15 @@ const props = defineProps({
   x: { type: Number, default: 0 },
   y: { type: Number, default: 0 },
   holdingCount: { type: Number, default: 0 },
-  show: { type: Boolean, default: false }
+  show: { type: Boolean, default: false },
+  duration: { type: Number, default: 400 } // Thêm prop này
 });
 
 const style = computed(() => ({
   transform: `translate(${props.x}px, ${props.y}px)`,
   opacity: props.show ? 1 : 0,
   // Dùng transition để tạo hiệu ứng lướt đi
-  transition: 'transform 0.4s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.2s' 
+  transition: `transform ${props.duration}ms linear, opacity 0.2s` // Dùng linear cho rải quân đều hơn 
 }));
 </script>
 
