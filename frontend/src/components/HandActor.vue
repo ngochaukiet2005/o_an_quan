@@ -17,7 +17,8 @@ const props = defineProps({
   y: { type: Number, default: 0 },
   holdingCount: { type: Number, default: 0 },
   show: { type: Boolean, default: false },
-  duration: { type: Number, default: 400 } // Thêm prop này
+  duration: { type: Number, default: 400 }, // Thêm prop này
+  imageSrc: { type: String, default: '/img/hand.png' }
 });
 
 const style = computed(() => ({

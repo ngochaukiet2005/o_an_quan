@@ -103,6 +103,9 @@ export class GameWithHistory extends OAnQuanGame {
       const next2HasPieces = next2Sq.dan > 0 || next2Sq.quan > 0;
 
       if (nextIsEmpty && next2HasPieces) {
+        // 👇👇👇 THÊM MỚI: Ghi nhận hành động đập tay vào ô trống (next) 👇👇👇
+        this.moveHistory.push({ type: "touch_empty", index: next }); 
+        // 👆👆👆 --------------------------------------------------- 👆👆👆
         // Ăn lần 1
         const { eatenDan, eatenQuan } = this.captureAt(next2, currentPlayer);
         this.state.gameMessage = `Người chơi ${currentPlayer} ăn ${eatenQuan} Quan, ${eatenDan} Dân tại ô ${next2}.`;
@@ -129,6 +132,9 @@ export class GameWithHistory extends OAnQuanGame {
           const chainNext2HasPieces = chainNext2Sq.dan > 0 || chainNext2Sq.quan > 0;
 
           if (chainNextIsEmpty && chainNext2HasPieces) {
+            // 👇👇👇 THÊM MỚI: Ghi nhận đập tay khi ăn dây 👇👇👇
+            this.moveHistory.push({ type: "touch_empty", index: chainNext });
+            // 👆👆👆 ---------------------------------------- 👆👆👆
             const res = this.captureAt(chainNext2, currentPlayer);
             this.state.gameMessage += ` (Ăn dây ô ${chainNext2})`;
 

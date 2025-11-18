@@ -6,80 +6,80 @@
       :y="handState.y" 
       :holdingCount="handState.holdingCount" 
       :show="handState.show"
-      :duration="handState.duration" 
+      :duration="handState.duration"
+      :imageSrc="handState.image" 
     />
     
     <div class="board" v-if="displayBoard.length === 12" :class="playerViewClass">
-      
-      <div
-        :ref="(el) => cellRefs[0] = el" 
-        :class="['cell', 'quan-cell', 'quan-left', { clickable: false }]"
-        @click="handleClick(0)"
-      >
-        <CellStones 
-          :quanCount="displayBoard[0].quan" 
-          :danCount="displayBoard[0].dan" 
-          :seed="0"
-        />
-        <span class="label">Ô 0 (Quan P2)</span>
-        <div class="stone-counter">
-          <span v-if="displayBoard[0].quan > 0" class="counter-quan">{{ displayBoard[0].quan }}</span>
-          <span v-if="displayBoard[0].dan > 0" class="counter-dan">{{ displayBoard[0].dan }}</span>
-        </div>
-      </div>
-
-      <div class="board-row cell-row-a">
-        <div
-          v-for="i in 5"
-          :key="11 - i + 1"
-          :ref="(el) => cellRefs[11 - i + 1] = el" 
-          :class="['cell', 'dan-cell', { clickable: isClickable(11 - i + 1) }]"
-          @click="handleClick(11 - i + 1)"
+       <div
+            :ref="(el) => cellRefs[0] = el" 
+            :class="['cell', 'quan-cell', 'quan-left', { clickable: false }]"
+            @click="handleClick(0)"
         >
-          <CellStones 
-            :quanCount="0" 
-            :danCount="displayBoard[11 - i + 1].dan" 
-            :seed="11 - i + 1"
-          />
-          <span class="label">Ô {{ 11 - i + 1 }}</span>
-          <div class="stone-counter">{{ displayBoard[11 - i + 1].dan }}</div>
+            <CellStones 
+            :quanCount="displayBoard[0].quan" 
+            :danCount="displayBoard[0].dan" 
+            :seed="0"
+            />
+            <span class="label">Ô 0 (Quan P2)</span>
+            <div class="stone-counter">
+            <span v-if="displayBoard[0].quan > 0" class="counter-quan">{{ displayBoard[0].quan }}</span>
+            <span v-if="displayBoard[0].dan > 0" class="counter-dan">{{ displayBoard[0].dan }}</span>
+            </div>
         </div>
-      </div>
 
-      <div class="board-row cell-row-b">
+        <div class="board-row cell-row-a">
+            <div
+            v-for="i in 5"
+            :key="11 - i + 1"
+            :ref="(el) => cellRefs[11 - i + 1] = el" 
+            :class="['cell', 'dan-cell', { clickable: isClickable(11 - i + 1) }]"
+            @click="handleClick(11 - i + 1)"
+            >
+            <CellStones 
+                :quanCount="0" 
+                :danCount="displayBoard[11 - i + 1].dan" 
+                :seed="11 - i + 1"
+            />
+            <span class="label">Ô {{ 11 - i + 1 }}</span>
+            <div class="stone-counter">{{ displayBoard[11 - i + 1].dan }}</div>
+            </div>
+        </div>
+
+        <div class="board-row cell-row-b">
+            <div
+            v-for="i in 5"
+            :key="i"
+            :ref="(el) => cellRefs[i] = el" 
+            :class="['cell', 'dan-cell', { clickable: isClickable(i) }]"
+            @click="handleClick(i)"
+            >
+            <CellStones 
+                :quanCount="0" 
+                :danCount="displayBoard[i].dan" 
+                :seed="i"
+            />
+            <span class="label">Ô {{ i }}</span>
+            <div class="stone-counter">{{ displayBoard[i].dan }}</div>
+            </div>
+        </div>
+
         <div
-          v-for="i in 5"
-          :key="i"
-          :ref="(el) => cellRefs[i] = el" 
-          :class="['cell', 'dan-cell', { clickable: isClickable(i) }]"
-          @click="handleClick(i)"
+            :ref="(el) => cellRefs[6] = el" 
+            :class="['cell', 'quan-cell', 'quan-right', { clickable: false }]"
+            @click="handleClick(6)"
         >
-          <CellStones 
-            :quanCount="0" 
-            :danCount="displayBoard[i].dan" 
-            :seed="i"
-          />
-          <span class="label">Ô {{ i }}</span>
-          <div class="stone-counter">{{ displayBoard[i].dan }}</div>
+            <CellStones 
+            :quanCount="displayBoard[6].quan" 
+            :danCount="displayBoard[6].dan" 
+            :seed="6"
+            />
+            <span class="label">Ô 6 (Quan P1)</span>
+            <div class="stone-counter">
+            <span v-if="displayBoard[6].quan > 0" class="counter-quan">{{ displayBoard[6].quan }}</span>
+            <span v-if="displayBoard[6].dan > 0" class="counter-dan">{{ displayBoard[6].dan }}</span>
+            </div>
         </div>
-      </div>
-
-      <div
-        :ref="(el) => cellRefs[6] = el" 
-        :class="['cell', 'quan-cell', 'quan-right', { clickable: false }]"
-        @click="handleClick(6)"
-      >
-        <CellStones 
-          :quanCount="displayBoard[6].quan" 
-          :danCount="displayBoard[6].dan" 
-          :seed="6"
-        />
-        <span class="label">Ô 6 (Quan P1)</span>
-        <div class="stone-counter">
-          <span v-if="displayBoard[6].quan > 0" class="counter-quan">{{ displayBoard[6].quan }}</span>
-          <span v-if="displayBoard[6].dan > 0" class="counter-dan">{{ displayBoard[6].dan }}</span>
-        </div>
-      </div>
     </div>
   </div>
 </template>
@@ -101,8 +101,15 @@ const emits = defineEmits(["move", "score-update"]);
 // === 1. QUẢN LÝ STATE ===
 const gameWrapperRef = ref(null);
 const cellRefs = reactive({});
+
+// Thêm thuộc tính 'image' vào handState
 const handState = reactive({
-  x: 0, y: 0, holdingCount: 0, show: false, duration: 500 // Tốc độ mặc định chậm lại (500ms)
+  x: 0, 
+  y: 0, 
+  holdingCount: 0, 
+  show: false, 
+  duration: 500,
+  image: '/img/hand.png' // Ảnh mặc định
 });
 
 const displayBoard = ref([]);
@@ -113,8 +120,6 @@ watch(() => props.board, (newVal) => {
   }
 }, { immediate: true, deep: true });
 
-
-// === 2. HÀM TIỆN ÍCH ===
 const getCellPos = (index) => {
   const cellEl = cellRefs[index];
   if (!cellEl || !gameWrapperRef.value) return { x: 0, y: 0 };
@@ -128,14 +133,15 @@ const getCellPos = (index) => {
 
 const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// === 3. LOGIC ANIMATION (ĐÃ CHỈNH SỬA: CHẬM & RÕ RÀNG) ===
+// === 3. LOGIC ANIMATION MỚI ===
 const runMoveAnimation = async (history) => {
   if (!history || history.length === 0) return;
 
   handState.show = true;
   handState.holdingCount = 0;
+  handState.image = '/img/hand.png'; // Reset về ảnh thường
 
-  // Di chuyển tay đến vị trí khởi đầu
+  // Di chuyển đến vị trí đầu tiên
   if (history[0]) {
       const startIdx = (history[0].type === 'pickup') ? history[0].index : history[0].start;
       const firstPos = getCellPos(startIdx);
@@ -150,43 +156,37 @@ const runMoveAnimation = async (history) => {
     // --- A. BỐC QUÂN ---
     if (type === 'pickup') {
       const pos = getCellPos(index);
-      handState.duration = 500; // Bay chậm
+      handState.duration = 500;
+      handState.image = '/img/hand.png';
       handState.x = pos.x;
       handState.y = pos.y;
       
-      await wait(500); // 1. Đợi bay đến nơi
+      await wait(500); // Bay đến
+      await wait(150); // Nghỉ
 
-      // 2. Dừng lại một chút trước khi bốc (tạo đà)
-      await wait(150);
-
-      // 3. Cầm quân lên tay & Xóa quân ở ô
       handState.holdingCount += count;
       if (displayBoard.value[index]) {
         displayBoard.value[index].dan = 0;
       }
 
-      await wait(300); // 4. Dừng lại để người chơi thấy ô đã rỗng và tay đã đầy
+      await wait(300); 
     }
 
     // --- B. RẢI QUÂN ---
     else if (type === 'spread') {
       let currentCell = start;
       let remaining = count;
-
-      handState.duration = 450; // Tốc độ rải (chậm vừa phải)
+      handState.duration = 450;
+      handState.image = '/img/hand.png';
 
       while (remaining > 0) {
-        // 1. Bay tay đến ô rải
         const pos = getCellPos(currentCell);
         handState.x = pos.x;
         handState.y = pos.y;
         
-        await wait(450); // Đợi bay đến
+        await wait(450); // Bay
+        await wait(200); // Dừng
 
-        // 2. DỪNG LẠI (QUAN TRỌNG): Tay dừng trên ô
-        await wait(200);
-
-        // 3. Thả quân & Cập nhật số liệu
         if (handState.holdingCount > 0) handState.holdingCount--;
         remaining--;
 
@@ -194,45 +194,62 @@ const runMoveAnimation = async (history) => {
           displayBoard.value[currentCell].dan += 1;
         }
         
-        // 4. Dừng lại chút nữa để mắt người chơi kịp thấy số nhảy lên +1
         await wait(200);
-
-        // 5. Tính ô kế tiếp
         currentCell = (currentCell + direction + 12) % 12;
       }
     }
 
-    // --- C. ĂN QUÂN ---
+    // --- C. (MỚI) CHẠM Ô TRỐNG ---
+    else if (type === 'touch_empty') {
+       const pos = getCellPos(index);
+       handState.duration = 500;
+       handState.x = pos.x;
+       handState.y = pos.y;
+
+       await wait(500); // 1. Bay đến ô trống
+
+       // 2. Đổi sang icon đặc biệt (Ví dụ: Đập tay / Chỉ tay)
+       // Bạn hãy đổi tên file ảnh dưới đây thành file bạn sẽ upload
+       handState.image = '/img/hand-slap.png'; 
+       
+       // 3. Dừng lại để người chơi thấy hành động
+       await wait(600);
+
+       // 4. Đổi lại ảnh thường để chuẩn bị đi tiếp
+       handState.image = '/img/hand.png';
+    }
+
+    // --- D. ĂN QUÂN ---
     else if (type === 'capture') {
       const pos = getCellPos(index);
       handState.duration = 500;
+      handState.image = '/img/hand.png'; // Đảm bảo ảnh là ảnh thường
       handState.x = pos.x;
       handState.y = pos.y;
       
       await wait(500);
-      await wait(200); // Dừng lại nhìn ô sắp bị ăn
+      await wait(200);
       
-      // Hiệu ứng ăn
       if (displayBoard.value[index]) {
          displayBoard.value[index].dan = 0;
          displayBoard.value[index].quan = 0;
       }
-      // 👇👇👇 THÊM ĐOẠN NÀY 👇👇👇
-      // Gửi sự kiện cộng điểm ngay lập tức
+      
       const points = (eatenQuan * 5) + eatenDan;
       emits('score-update', { points });
-      // 👆👆👆 ----------------- 👆👆👆
-      console.log(`Đã ăn tại ô ${index}: ${eatenQuan} Quan, ${eatenDan} Dân`);
       
-      await wait(600); // Dừng lâu hơn chút để tận hưởng cảm giác ăn quân
+      await wait(600); 
     }
   }
 
   handState.show = false;
+  // Reset ảnh lần cuối cho chắc chắn
+  handState.image = '/img/hand.png'; 
 };
 
 defineExpose({ runMoveAnimation });
 
+// ... (Các hàm computed và methods khác giữ nguyên) ...
 // === 4. LOGIC GAMEPLAY ===
 const myPlayerNumber = computed(() => {
   const me = props.players.find((p) => p.id === props.playerId);
@@ -262,7 +279,7 @@ function handleClick(index) {
 </script>
 
 <style scoped>
-/* Giữ nguyên style cũ của bạn */
+/* ... Giữ nguyên style cũ ... */
 .game-wrapper {
   margin-top: 20px;
   text-align: center;
@@ -379,13 +396,10 @@ function handleClick(index) {
 .p2-view .cell {
   transform: rotate(180deg);
 }
-/* 👇👇👇 THÊM ĐOẠN NÀY ĐỂ FIX LỖI HOVER CHO P2 👇👇👇 */
 .p2-view .cell.clickable:hover {
   background-color: #f7f3e8;
-  /* Quan trọng: Phải giữ lại rotate(180deg) trước khi dịch chuyển */
   transform: rotate(180deg) translateY(-2px); 
 }
-/* 👆👆👆 -------------------------------------- 👆👆👆 */
 .p2-view .stone-counter {
   transform: rotate(0deg); 
 }
