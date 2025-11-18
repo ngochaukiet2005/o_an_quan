@@ -1,15 +1,18 @@
 <template>
-  <div class="game-wrapper">
+  <div class="game-wrapper" ref="gameWrapperRef">
+    
     <HandActor 
       :x="handState.x" 
       :y="handState.y" 
       :holdingCount="handState.holdingCount" 
       :show="handState.show"
     />
+    
     <div class="board" v-if="board.length === 12" :class="playerViewClass">
       
       <div
-        :ref="(el) => cellRefs[0] = el" :class="['cell', 'quan-cell', 'quan-left', { clickable: false }]"
+        :ref="(el) => cellRefs[0] = el" 
+        :class="['cell', 'quan-cell', 'quan-left', { clickable: false }]"
         @click="handleClick(0)"
       >
         <CellStones 
@@ -30,7 +33,8 @@
         <div
           v-for="i in 5"
           :key="11 - i + 1"
-          :ref="(el) => cellRefs[11 - i + 1] = el" :class="['cell', 'dan-cell', { clickable: isClickable(11 - i + 1) }]"
+          :ref="(el) => cellRefs[11 - i + 1] = el" 
+          :class="['cell', 'dan-cell', { clickable: isClickable(11 - i + 1) }]"
           @click="handleClick(11 - i + 1)"
         >
           <CellStones 
@@ -51,7 +55,8 @@
         <div
           v-for="i in 5"
           :key="i"
-          :ref="(el) => cellRefs[i] = el" :class="['cell', 'dan-cell', { clickable: isClickable(i) }]"
+          :ref="(el) => cellRefs[i] = el" 
+          :class="['cell', 'dan-cell', { clickable: isClickable(i) }]"
           @click="handleClick(i)"
         >
           <CellStones 
@@ -69,7 +74,8 @@
       </div>
 
       <div
-        :ref="(el) => cellRefs[6] = el" :class="['cell', 'quan-cell', 'quan-right', { clickable: false }]"
+        :ref="(el) => cellRefs[6] = el" 
+        :class="['cell', 'quan-cell', 'quan-right', { clickable: false }]"
         @click="handleClick(6)"
       >
         <CellStones 
@@ -90,7 +96,6 @@
 </template>
 
 <script setup>
-// 1. SỬA LỖI IMPORT: Thêm ref, reactive
 import { computed, ref, reactive } from "vue";
 import CellStones from "./CellStones.vue";
 import HandActor from "./HandActor.vue";
@@ -117,34 +122,39 @@ const props = defineProps({
 const emits = defineEmits(["move"]);
 
 // === LOGIC ANIMATION ===
-const boardRef = ref(null);
-const cellRefs = ref({});
+const gameWrapperRef = ref(null); // 2. Thêm ref cho wrapper
+// 3. SỬA LỖI: Dùng reactive để lưu danh sách ô (Vue 3 Best Practice cho v-for ref)
+const cellRefs = reactive({}); 
 const handState = reactive({ x: 0, y: 0, holdingCount: 0, show: false });
 
-// Hàm lấy tọa độ (x, y) chính xác của 1 ô
+// Hàm tính toán tọa độ
 const getCellPos = (index) => {
-  const cellEl = cellRefs.value[index];
-  if (!cellEl) return { x: 0, y: 0 };
+  // Truy cập trực tiếp cellRefs[index] (không cần .value)
+  const cellEl = cellRefs[index];
+  
+  // Nếu chưa load xong DOM hoặc không tìm thấy ô -> trả về 0,0
+  if (!cellEl || !gameWrapperRef.value) return { x: 0, y: 0 };
 
   const rect = cellEl.getBoundingClientRect();
-  
-  // Tính vị trí tương đối so với container cha (game-wrapper)
-  const wrapper = document.querySelector('.game-wrapper');
-  const wrapperRect = wrapper ? wrapper.getBoundingClientRect() : { left: 0, top: 0 };
+  const wrapperRect = gameWrapperRef.value.getBoundingClientRect();
 
+  // Tính toán vị trí tương đối: (Vị trí ô - Vị trí khung) + (Nửa kích thước ô để vào tâm)
   return {
-    // Cộng thêm nửa chiều rộng/cao để bàn tay trỏ vào tâm ô
     x: rect.left - wrapperRect.left + rect.width / 2,
     y: rect.top - wrapperRect.top + rect.height / 2
   };
 };
 
-// Hàm Animation chính sẽ được gọi từ GameRoom
+// Hàm Animation chính
 const animateMove = async (startIdx, direction, count) => {
   if (!count) return;
 
   // 1. Di chuyển tay đến ô bắt đầu
   const startPos = getCellPos(startIdx);
+  
+  // Kiểm tra an toàn: nếu tọa độ vẫn 0,0 (do chưa render kịp) thì bỏ qua
+  if (startPos.x === 0 && startPos.y === 0) return;
+
   handState.x = startPos.x;
   handState.y = startPos.y;
   handState.show = true;
@@ -160,7 +170,7 @@ const animateMove = async (startIdx, direction, count) => {
   // 3. Bắt đầu vòng lặp Rải quân
   let currentIdx = startIdx;
   let remaining = count;
-  const dir = direction; 
+  const dir = (direction === 'right') ? 1 : (direction === 'left' ? -1 : direction);
 
   while (remaining > 0) {
     // Tính chỉ số ô tiếp theo
@@ -182,7 +192,7 @@ const animateMove = async (startIdx, direction, count) => {
     if (props.board[currentIdx]) {
       props.board[currentIdx].dan += 1;
     }
-  } // <--- 2. SỬA LỖI: Đã thêm dấu đóng ngoặc cho vòng lặp while
+  }
 
   // 4. Kết thúc
   await new Promise(r => setTimeout(r, 300));
@@ -233,6 +243,8 @@ function handleClick(index) {
 .game-wrapper {
   margin-top: 20px;
   text-align: center;
+  /* Quan trọng: Để HandActor (absolute) căn theo khung này */
+  position: relative; 
 }
 
 .board {
@@ -254,25 +266,19 @@ function handleClick(index) {
   gap: 10px;
 }
 
-/* === 4. CẬP NHẬT STYLE CHO Ô === */
 .cell {
-  /* Thêm relative để chứa đá (absolute) */
   position: relative; 
-  padding: 0; /* Xóa padding để đá có không gian */
-  overflow: hidden; /* Cắt phần đá tràn ra */
-  
+  padding: 0; 
+  overflow: hidden; 
   background: white;
   border-radius: 10px;
   border: 1px solid #d1d5db;
   font-size: 16px;
   min-height: 100px;
-  
   display: flex;
   flex-direction: column;
   align-items: center;
-  /* Đẩy label lên trên cùng */
   justify-content: flex-start; 
-  
   cursor: not-allowed;
   transition: all 0.2s ease;
 }
@@ -286,34 +292,29 @@ function handleClick(index) {
   transform: translateY(-2px);
 }
 
-/* Label nằm mờ ở trên */
 .cell .label {
   margin-top: 5px;
   font-size: 0.7rem;
   font-weight: bold;
   color: #5d4037;
-  z-index: 200; /* Nổi trên đá */
+  z-index: 200; 
   opacity: 0.8;
-  pointer-events: none; /* Click xuyên qua label */
+  pointer-events: none; 
 }
 
-/* === 5. STYLE CHO SỐ ĐẾM NHỎ Ở GÓC === */
 .stone-counter {
   position: absolute;
   bottom: 5px;
   right: 5px;
   z-index: 200;
-  
   background-color: rgba(255, 255, 255, 0.9);
   border: 1px solid #ccc;
   border-radius: 50%;
   min-width: 24px;
   height: 24px;
-  
   display: flex;
   align-items: center;
   justify-content: center;
-  
   font-size: 0.85rem;
   font-weight: bold;
   color: #333;
@@ -328,19 +329,16 @@ function handleClick(index) {
   color: #388e3c;
 }
 
-/* XÓA style cũ của .cell .stones (nếu không dùng nữa) */
 .cell .stones {
   display: none; 
 }
 
-/* Style ô Quan (Bán nguyệt) - Giữ nguyên logic cũ */
 .quan-cell {
   width: 90px; 
   min-height: 120px;
   background-color: #fcd34d !important; 
   border: 4px solid #b45309;
-  
-  justify-content: flex-start; /* Sửa lại thành flex-start để label lên trên */
+  justify-content: flex-start; 
   border-radius: 0; 
 }
 
@@ -358,7 +356,6 @@ function handleClick(index) {
   border-radius: 0 100px 100px 0;
 }
 
-/* Layout Hàng */
 .cell-row-a {
   grid-row: 1;
   grid-column: 2;
@@ -368,7 +365,6 @@ function handleClick(index) {
   grid-column: 2;
 }
 
-/* --- Bố cục Xoay cho P2 (Giữ nguyên logic fix lỗi) --- */
 .p2-view {
   transform: rotate(180deg);
   transition: transform 0.5s ease;
