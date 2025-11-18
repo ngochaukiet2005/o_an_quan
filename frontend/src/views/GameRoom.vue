@@ -25,6 +25,7 @@
         />
 
         <GameBoard
+          ref="gameBoardRef"
           v-if="board.length"
           :board="board"
           :players="players"
@@ -98,7 +99,7 @@ const router = useRouter();
 const roomId = computed(() => route.params.roomId);
 const playerName = computed(() => route.query.playerName);
 const playerId = socketService.getSocketIdReactive();
-
+const gameBoardRef = ref(null);
 // --- State mới ---
 const gamePhase = ref("loading"); // 'loading', 'rps', 'playing', 'game_over'
 const isRpsRetry = ref(false);
@@ -220,7 +221,13 @@ function resetState() {
   isRpsRetry.value = false;
   rpsResult.value = null;
 }
-
+function handleAnimateEvent(data) {
+  console.log("⚡ Kích hoạt Animation:", data);
+  if (gameBoardRef.value) {
+    // Gọi hàm animateMove bên trong GameBoard
+    gameBoardRef.value.animateMove(data.cellIndex, data.direction, data.count);
+  }
+}
 function setupSocketListeners() {
   socketService.offAll();
 
@@ -279,6 +286,7 @@ function setupSocketListeners() {
       players.value = data.players.map(p => ({...p, score: 0}));
     }
   });
+  socketService.onAnimate(handleAnimateEvent);
 }
 
 /* ===============================

@@ -1,9 +1,15 @@
 <template>
   <div class="game-wrapper">
+    <HandActor 
+      :x="handState.x" 
+      :y="handState.y" 
+      :holdingCount="handState.holdingCount" 
+      :show="handState.show"
+    />
     <div class="board" v-if="board.length === 12" :class="playerViewClass">
       
       <div
-        :class="['cell', 'quan-cell', 'quan-left', { clickable: false }]"
+        :ref="(el) => cellRefs[0] = el" :class="['cell', 'quan-cell', 'quan-left', { clickable: false }]"
         @click="handleClick(0)"
       >
         <CellStones 
@@ -24,7 +30,7 @@
         <div
           v-for="i in 5"
           :key="11 - i + 1"
-          :class="['cell', 'dan-cell', { clickable: isClickable(11 - i + 1) }]"
+          :ref="(el) => cellRefs[11 - i + 1] = el" :class="['cell', 'dan-cell', { clickable: isClickable(11 - i + 1) }]"
           @click="handleClick(11 - i + 1)"
         >
           <CellStones 
@@ -45,7 +51,7 @@
         <div
           v-for="i in 5"
           :key="i"
-          :class="['cell', 'dan-cell', { clickable: isClickable(i) }]"
+          :ref="(el) => cellRefs[i] = el" :class="['cell', 'dan-cell', { clickable: isClickable(i) }]"
           @click="handleClick(i)"
         >
           <CellStones 
@@ -63,7 +69,7 @@
       </div>
 
       <div
-        :class="['cell', 'quan-cell', 'quan-right', { clickable: false }]"
+        :ref="(el) => cellRefs[6] = el" :class="['cell', 'quan-cell', 'quan-right', { clickable: false }]"
         @click="handleClick(6)"
       >
         <CellStones 
@@ -84,8 +90,10 @@
 </template>
 
 <script setup>
-import { computed } from "vue";
-import CellStones from "./CellStones.vue"; // <-- 3. IMPORT COMPONENT MỚI
+// 1. SỬA LỖI IMPORT: Thêm ref, reactive
+import { computed, ref, reactive } from "vue";
+import CellStones from "./CellStones.vue";
+import HandActor from "./HandActor.vue";
 
 const props = defineProps({
   board: {
@@ -108,6 +116,82 @@ const props = defineProps({
 
 const emits = defineEmits(["move"]);
 
+// === LOGIC ANIMATION ===
+const boardRef = ref(null);
+const cellRefs = ref({});
+const handState = reactive({ x: 0, y: 0, holdingCount: 0, show: false });
+
+// Hàm lấy tọa độ (x, y) chính xác của 1 ô
+const getCellPos = (index) => {
+  const cellEl = cellRefs.value[index];
+  if (!cellEl) return { x: 0, y: 0 };
+
+  const rect = cellEl.getBoundingClientRect();
+  
+  // Tính vị trí tương đối so với container cha (game-wrapper)
+  const wrapper = document.querySelector('.game-wrapper');
+  const wrapperRect = wrapper ? wrapper.getBoundingClientRect() : { left: 0, top: 0 };
+
+  return {
+    // Cộng thêm nửa chiều rộng/cao để bàn tay trỏ vào tâm ô
+    x: rect.left - wrapperRect.left + rect.width / 2,
+    y: rect.top - wrapperRect.top + rect.height / 2
+  };
+};
+
+// Hàm Animation chính sẽ được gọi từ GameRoom
+const animateMove = async (startIdx, direction, count) => {
+  if (!count) return;
+
+  // 1. Di chuyển tay đến ô bắt đầu
+  const startPos = getCellPos(startIdx);
+  handState.x = startPos.x;
+  handState.y = startPos.y;
+  handState.show = true;
+  handState.holdingCount = 0; 
+
+  // Chờ tay bay đến ô bắt đầu
+  await new Promise(r => setTimeout(r, 400));
+
+  // 2. "Bốc" quân
+  handState.holdingCount = count;
+  await new Promise(r => setTimeout(r, 200));
+
+  // 3. Bắt đầu vòng lặp Rải quân
+  let currentIdx = startIdx;
+  let remaining = count;
+  const dir = direction; 
+
+  while (remaining > 0) {
+    // Tính chỉ số ô tiếp theo
+    currentIdx = (currentIdx + dir + 12) % 12;
+    
+    // Lấy vị trí ô tiếp theo & cập nhật tay
+    const pos = getCellPos(currentIdx);
+    handState.x = pos.x;
+    handState.y = pos.y;
+    
+    // Thời gian bay giữa các ô
+    await new Promise(r => setTimeout(r, 300));
+    
+    // Thả 1 quân
+    remaining--;
+    handState.holdingCount = remaining;
+    
+    // Hiệu ứng thị giác: Tự tăng quân ở ô dưới bàn cờ lên 1
+    if (props.board[currentIdx]) {
+      props.board[currentIdx].dan += 1;
+    }
+  } // <--- 2. SỬA LỖI: Đã thêm dấu đóng ngoặc cho vòng lặp while
+
+  // 4. Kết thúc
+  await new Promise(r => setTimeout(r, 300));
+  handState.show = false;
+};
+
+defineExpose({ animateMove });
+
+// === LOGIC GAME CŨ ===
 const myPlayerNumber = computed(() => {
   const me = props.players.find((p) => p.id === props.playerId);
   return me?.symbol === "X" ? 1 : 2;
@@ -128,31 +212,17 @@ const isMySquare = (index) => {
 };
 
 const isClickable = (index) => {
-  if (
-    !isMyTurn.value ||
-    !props.board[index] ||
-    index === 0 ||
-    index === 6
-  ) {
-    return false;
-  }
-  if (!isMySquare(index)) {
-    return false;
-  }
+  if (!isMyTurn.value || !props.board[index] || index === 0 || index === 6) return false;
+  if (!isMySquare(index)) return false;
   return props.board[index].dan > 0 && props.board[index].quan === 0;
 };
 
 function handleClick(index) {
   if (!isClickable(index)) {
-    if (!isMyTurn.value) {
-      alert("Chưa đến lượt của bạn!");
-    } else if (index === 0 || index === 6) {
-      alert("Không thể bốc từ ô Quan.");
-    } else if (!isMySquare(index)) {
-      alert("Bạn chỉ có thể chọn ô dân ở phía của mình.");
-    } else if (props.board[index].dan === 0) {
-      alert("Không thể bốc từ ô dân rỗng.");
-    }
+    if (!isMyTurn.value) alert("Chưa đến lượt của bạn!");
+    else if (index === 0 || index === 6) alert("Không thể bốc từ ô Quan.");
+    else if (!isMySquare(index)) alert("Bạn chỉ có thể chọn ô dân ở phía của mình.");
+    else if (props.board[index].dan === 0) alert("Không thể bốc từ ô dân rỗng.");
     return;
   }
   emits("move", index);

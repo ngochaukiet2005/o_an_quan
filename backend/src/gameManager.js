@@ -360,7 +360,18 @@ export const handleMakeMove = (io, socket, payload) => {
       senderName: "Hệ thống",
       message: `${playerName} đã chọn ô ${cellIndex} và đi về hướng ${directionText}.`
   });
+  // === [THÊM ĐOẠN NÀY] ===
+  // Lấy số lượng quân hiện tại để báo cho Client chạy Animation
+  const currentBoard = game.getState().board;
+  const seedsCount = currentBoard[cellIndex] ? currentBoard[cellIndex].dan : 0;
 
+  // Phát sự kiện animation cho TOÀN BỘ người trong phòng
+  io.to(room.id).emit("game:perform_animation", {
+    cellIndex: cellIndex,
+    direction: moveDirection,
+    count: seedsCount
+  });
+  // =======================
   performMove(io, room, cellIndex, moveDirection);
 };
 

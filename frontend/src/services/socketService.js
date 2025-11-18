@@ -75,7 +75,6 @@ function sendMessage(roomId, playerName, text) {
 }
 
 /* ================= ON ================= */
-
 function onRoomCreated(cb) {
   getSocket().on("room:created", cb);
 }
@@ -102,7 +101,9 @@ function onGameStart(cb) {
 function onNewMessage(cb) {
   getSocket().on("chat:receive", cb);
 }
-
+function onAnimate(cb) {
+  getSocket().on("game:perform_animation", cb);
+}
 function offAll() {
   if (!socket) return;
   socket.off("game_start");
@@ -140,5 +141,6 @@ export default {
   getSocket,
   getSocketIdReactive,
   leaveRoom,
-  submitRps, // <-- EXPORT HÀM MỚI
+  submitRps,
+  onAnimate, // <-- EXPORT HÀM MỚI
 };
