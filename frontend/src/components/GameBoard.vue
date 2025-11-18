@@ -82,19 +82,18 @@ const myPlayerNumber = computed(() => {
   const me = props.players.find((p) => p.id === props.playerId);
   return me?.symbol === "X" ? 1 : 2;
 });
-// === THÊM DÒNG NÀY VÀO ===
+
 const playerViewClass = computed(() => {
   return myPlayerNumber.value === 2 ? 'p2-view' : 'p1-view';
 });
-// =========================
+
 const isMyTurn = computed(() => props.currentTurnId === props.playerId);
 
-// Hàm kiểm tra xem ô có phải của phe mình không
 const isMySquare = (index) => {
   if (myPlayerNumber.value === 1) {
-    return index >= 1 && index <= 5; // P1 sở hữu ô 1-5
+    return index >= 1 && index <= 5; 
   } else {
-    return index >= 7 && index <= 11; // P2 sở hữu ô 7-11
+    return index >= 7 && index <= 11; 
   }
 };
 
@@ -107,11 +106,9 @@ const isClickable = (index) => {
   ) {
     return false;
   }
-  // Chỉ được nhấp vào ô của mình
   if (!isMySquare(index)) {
     return false;
   }
-  // Phải có Dân và không có Quan
   return props.board[index].dan > 0 && props.board[index].quan === 0;
 };
 
@@ -141,7 +138,7 @@ function handleClick(index) {
 .board {
   display: grid;
   grid-template-columns: 1fr 5fr 1fr; /* Cột Quan | 5 ô Dân | Cột Quan */
-  grid-template-rows: auto auto; /* Hàng A | Hàng B */
+  grid-template-rows: auto auto; 
   gap: 10px;
   max-width: 900px;
   margin: 20px auto;
@@ -157,7 +154,6 @@ function handleClick(index) {
   gap: 10px;
 }
 
-/* Gán các ô vào đúng vị trí */
 .cell {
   padding: 14px 8px;
   background: white;
@@ -179,7 +175,6 @@ function handleClick(index) {
 }
 .cell.clickable:hover {
   background-color: #f7f3e8;
-  /* Áp dụng transform ở đây cho P1 (mặc định). */
   transform: translateY(-2px);
 }
 
@@ -205,22 +200,48 @@ function handleClick(index) {
   color: #388e3c;
 }
 
-/* Định vị các ô quan */
+/* === CẬP NHẬT STYLE Ô QUAN (BÁN NGUYỆT) === */
 .quan-cell {
-  border-radius: 40px;
+  /* Kích thước cố định để tạo hình bán nguyệt đẹp */
+  width: 90px; 
   min-height: 120px;
+  
+  /* Màu sắc nổi bật cho Quan */
+  background-color: #fcd34d !important; /* Sử dụng !important để đè màu trắng mặc định của .cell */
+  border: 4px solid #b45309;
+  
   justify-content: center;
-}
-.quan-left {
-  grid-row: 1 / span 2; /* Nằm ở hàng 1, kéo dài 2 hàng */
-  grid-column: 1;
-}
-.quan-right {
-  grid-row: 1 / span 2; /* Nằm ở hàng 1, kéo dài 2 hàng */
-  grid-column: 3;
+  /* Reset border-radius mặc định của .cell */
+  border-radius: 0; 
 }
 
-/* Định vị hàng dân */
+.quan-left {
+  grid-row: 1 / span 2; 
+  grid-column: 1;
+  
+  /* Đẩy ô sang phải để sát vào khu vực dân */
+  justify-self: end; 
+
+  /* Bo tròn 2 góc trái thật lớn */
+  border-radius: 100px 0 0 100px; 
+  
+  /* Nếu muốn nối liền mạch (không có viền ngăn cách) thì dùng dòng dưới, 
+     nhưng vì grid có gap:10px nên giữ viền sẽ đẹp hơn */
+  /* border-right: none; */ 
+}
+
+.quan-right {
+  grid-row: 1 / span 2; 
+  grid-column: 3;
+
+  /* Đẩy ô sang trái để sát vào khu vực dân */
+  justify-self: start;
+
+  /* Bo tròn 2 góc phải thật lớn */
+  border-radius: 0 100px 100px 0;
+}
+/* ========================================== */
+
 .cell-row-a {
   grid-row: 1;
   grid-column: 2;
@@ -229,30 +250,28 @@ function handleClick(index) {
   grid-row: 2;
   grid-column: 2;
 }
+
 /* --- Bố cục Xoay cho P2 --- */
 .p2-view {
-  /* Xoay toàn bộ bàn cờ 180 độ */
   transform: rotate(180deg);
   transition: transform 0.5s ease;
 }
 
 .p2-view .cell {
-  /* Xoay ngược chữ và các-thành-phần-con lại để đọc được */
   transform: rotate(180deg);
 }
-/* === BỔ SUNG KHỐI NÀY ĐỂ SỬA LỖI XOAY === */
+
 .p2-view .cell.clickable:hover {
-  /*
-    Vì .p2-view .cell đã xoay 180 độ,
-    'translateY(-2px)' (di chuyển lên) sẽ bị lật thành 'di chuyển xuống'.
-    Vì vậy, chúng ta phải dùng 'translateY(2px)' để nó di chuyển 'lên'
-    (so với màn hình) khi ở chế độ P2.
-  */
   transform: rotate(180deg) translateY(2px);
-  /* Chúng ta cũng cần giữ lại background-color 
-    vì quy tắc CSS gốc bị ghi đè.
-  */
   background-color: #f7f3e8;
 }
-/* ================================= */
+.p2-view .quan-left {
+  /* Đang là cong trái, đổi thành cong PHẢI (để khi xoay 180 độ nó vẫn hướng ra ngoài) */
+  border-radius: 0 100px 100px 0 !important; 
+}
+
+.p2-view .quan-right {
+  /* Đang là cong phải, đổi thành cong TRÁI */
+  border-radius: 100px 0 0 100px !important;
+}
 </style>
