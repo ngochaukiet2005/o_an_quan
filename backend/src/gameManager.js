@@ -188,7 +188,11 @@ export const handleSubmitRps = (io, socket, payload) => {
       player1Choice: rpsState.choices[room.players[0].id],
       player2Choice: rpsState.choices[room.players[1].id],
       message: `${startingPlayer.name} đi trước!`,
-      winnerId: startingPlayer.id // Thêm cả winnerId
+      winnerId: startingPlayer.id, // Thêm cả winnerId
+      // === THÊM 2 DÒNG NÀY ===
+      player1Id: room.players[0].id,
+      player2Id: room.players[1].id,
+      // =======================
     };
 
     // 2. Gửi sự kiện 'rpsResult' mà frontend đang lắng nghe

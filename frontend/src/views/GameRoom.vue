@@ -246,32 +246,32 @@ function setupSocketListeners() {
 
       // 1. Lưu data để dùng sau khi hiệu ứng xong
       rpsResultData.value = data
+      // Lấy ID của chính mình hiện tại
+      const myId = playerId.value;
+      let myChoice, oppChoice;
+      // So sánh ID của mình với ID từ Server gửi về
+      if (myId === data.player1Id) { 
+        // Nếu mình là Player 1
+        myChoice = data.player1Choice;
+        oppChoice = data.player2Choice;
+      } else if (myId === data.player2Id) { 
+        // Nếu mình là Player 2
+        myChoice = data.player2Choice;
+        oppChoice = data.player1Choice;
+      } else {
+        // Trường hợp khán giả (hoặc lỗi), mặc định hiển thị theo góc nhìn P1
+        myChoice = data.player1Choice;
+        oppChoice = data.player2Choice;
+      }
+      
+      rpsChoices.value = {
+        my: myChoice,
+        opp: oppChoice,
+      }
 
-      // 2. (SỬA 2: Tính toán "tôi" và "đối thủ")
-      const me = players.value.find((p) => p.id === playerId.value);
-      // Giả sử P1 là 'X' nếu không tìm thấy 'me' (phòng trường hợp)
-      const mySymbol = me ? me.symbol : "X"; 
-
-      let myChoice, oppChoice;
-
-      if (mySymbol === 'X') { // Tôi là P1
-        myChoice = data.player1Choice;
-        oppChoice = data.player2Choice;
-      } else { // Tôi là P2
-        myChoice = data.player2Choice;
-        oppChoice = data.player1Choice;
-      }
-      
-      // 3. Cập nhật ref để truyền cho component hiệu ứng
-      rpsChoices.value = {
-        my: myChoice,
-        opp: oppChoice,
-      }
-
-      // 4. Kích hoạt component hiệu ứng
-      gamePhase.value = 'animation'
-    }
-  )
+      gamePhase.value = 'animation'
+    }
+  )
   // 🔼🔼 KẾT THÚC PHẦN THAY THẾ 🔼🔼
   // Sửa lỗi "Chơi ngay": Lắng nghe 'room:joined' ở đây
   socketService.getSocket().on("room:joined", (data) => {

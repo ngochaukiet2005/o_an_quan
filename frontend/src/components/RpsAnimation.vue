@@ -1,13 +1,19 @@
 <template>
-  <div class="animation-overlay">
-    <div class="choice-container">
+  <div class="animation-overlay" @click="skipAnimation">
+    <div class="animation-container">
       
-      <div class="choice opponent-choice">
-        <component :is="getChoiceComponent(oppChoice)" />
+      <div class="choice-wrapper opponent-choice">
+        <component 
+          :is="oppIcon" 
+          class="icon-image icon-opponent" 
+        />
       </div>
 
-      <div class="choice my-choice">
-        <component :is="getChoiceComponent(myChoice)" />
+      <div class="choice-wrapper my-choice">
+        <component 
+          :is="myIcon" 
+          class="icon-image" 
+        />
       </div>
 
     </div>
@@ -15,8 +21,11 @@
 </template>
 
 <script setup>
-import { onMounted } from 'vue'; 
-// 🔽 QUAN TRỌNG: Các đường dẫn này phải chính xác
+// === SỬA LỖI TẠI ĐÂY ===
+// Đã xóa 'defineEmits' (và 'defineProps') khỏi import
+import { computed, onMounted, ref } from 'vue';
+// ======================
+
 import RockIcon from './icons/RockIcon.vue';
 import PaperIcon from './icons/PaperIcon.vue';
 import ScissorsIcon from './icons/ScissorsIcon.vue';
@@ -28,88 +37,127 @@ const props = defineProps({
 
 const emit = defineEmits(['animation-finished']);
 
-// Trả về component (không dùng shallowRef)
-const getChoiceComponent = (choice) => {
-  if (choice === 'rock') return RockIcon;
-  if (choice === 'paper') return PaperIcon;
-  if (choice === 'scissors') return ScissorsIcon;
-  return null;
+const iconMap = {
+  rock: RockIcon,
+  paper: PaperIcon,
+  scissors: ScissorsIcon,
 };
 
-// onMounted sẽ chạy khi component được hiển thị
+const myIcon = computed(() => iconMap[props.myChoice]);
+const oppIcon = computed(() => iconMap[props.oppChoice]);
+
+const animationTimer = ref(null);
+
+function finishAnimation() {
+  clearTimeout(animationTimer.value);
+  emit('animation-finished');
+  console.log("Animation finished, emitted event.");
+}
+
 onMounted(() => {
-  // Gửi tín hiệu sau 3 giây
-  setTimeout(() => {
-    emit('animation-finished');
-  }, 3000); 
+  animationTimer.value = setTimeout(() => {
+    finishAnimation();
+  }, 3500); 
 });
+
+function skipAnimation() {
+  finishAnimation();
+}
 </script>
 
 <style scoped>
+/* Lớp phủ toàn màn hình */
 .animation-overlay {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  background: transparent;
   z-index: 1000;
-  overflow: hidden;
-  color: white; /* Màu cho icon SVG */
+  overflow: hidden; 
 }
 
-.choice-container {
-  position: relative;
+/* CĂN GIỮA KHUNG CHỨA */
+.animation-container {
+  position: absolute;
+  top: 50%;    /* Căn giữa theo chiều dọc */
+  left: 50%;   /* Căn giữa theo chiều ngang */
+  transform: translate(-50%, -50%); /* Dịch chuyển về tâm */
+
+  width: 400px;
+  height: 600px; 
+}
+
+/* TĂNG KÍCH THƯỚC ICON */
+.choice-wrapper {
+  position: absolute;
+  left: 50%;   
+  
+  width: 250px;  /* <-- Kích thước icon to */
+  height: 250px; /* <-- Kích thước icon to */
+  
+  animation-duration: 0.8s;
+  animation-delay: 0.2s;
+  animation-fill-mode: forwards;
+  animation-timing-function: cubic-bezier(0.25, 1, 0.5, 1);
+  opacity: 0; /* Bắt đầu ẩn */
+}
+
+/* Icon (ảnh) bên trong wrapper */
+.icon-image {
   width: 100%;
   height: 100%;
 }
 
-.choice {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 150px;
-  height: 150px;
-}
+/* SỬA LẠI LOGIC ANIMATION */
 
-/* Animation của bạn */
+/* LỰA CHỌN CỦA BẠN (Từ dưới) */
 .my-choice {
-  animation: move-up 1.5s ease-out forwards;
+  top: 100%; 
+  transform: translate(-50%, 0); /* Căn giữa ngang */
+  animation-name: slideUp;
 }
 
-/* Animation của đối thủ */
+/* LỰA CHỌN CỦA ĐỐI THỦ (Từ trên) */
 .opponent-choice {
-  animation: move-down 1.5s ease-out forwards;
-}
-.opponent-choice :deep(svg) { 
-  transform: rotate(180deg); /* Lật icon của đối thủ */
+  bottom: 100%;
+  transform: translate(-50%, 0); /* Căn giữa ngang */
+  animation-name: slideDown;
 }
 
-/* Keyframes */
-@keyframes move-up {
+/* Xoay icon của đối thủ 180 độ */
+.icon-opponent {
+  transform: rotate(180deg);
+}
+
+/* KEYFRAMES MỚI (FIX LỖI CĂN CHỈNH) */
+
+@keyframes slideUp {
   from {
-    bottom: -200px;
+    top: 100%;
+    transform: translate(-50%, 0);
     opacity: 0;
   }
   to {
-    bottom: 50%;
-    opacity: 1;
-    transform: translateX(-50%) translateY(20px);
-  }
-}
-
-@keyframes move-down {
-  from {
-    top: -200px;
-    opacity: 0;
-  }
-  to {
+    /* Dừng ở NỬA DƯỚI màn hình */
     top: 50%;
+    transform: translate(-50%, 20px); /* 20px DƯỚI tâm */
     opacity: 1;
-    transform: translateX(-50%) translateY(-170px);
+  }
+}
+
+@keyframes slideDown {
+  from {
+    bottom: 100%;
+    transform: translate(-50%, 0);
+    opacity: 0;
+  }
+  to {
+    /* Dừng ở NỬA TRÊN màn hình */
+    bottom: 50%;
+    transform: translate(-50%, -20px); /* 20px TRÊN tâm */
+    opacity: 1;
   }
 }
 </style>
