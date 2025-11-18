@@ -1,6 +1,7 @@
 // src/gameManager.js
 import { generateRoomId } from "./utils.js";
 import { OAnQuanGame } from "./OAnQuanGame.js";
+import { GameWithHistory } from "./GameWithHistory.js"; // <-- THÊM DÒNG NÀY
 import { RpsGame } from "./RpsGame.js";
 import { TurnTimerManager } from "./turnTimer.js";
 
@@ -16,8 +17,8 @@ let timerManager = null; // Biến quản lý timer
 export const handleCreateRoom = (socket, playerName) => {
   const roomId = generateRoomId();
   const player1 = { id: socket.id, name: playerName, symbol: "X" };
-  const game = new OAnQuanGame();
-
+  //const game = new OAnQuanGame();
+  const game = new GameWithHistory();
   const room = {
     id: roomId,
     players: [player1],
@@ -99,8 +100,8 @@ export const handleJoinMatchmaking = (io, socket, playerName) => {
     const roomId = generateRoomId();
     const player1 = { id: player1Data.id, name: player1Data.name, symbol: "X" };
     const player2 = { id: player2Data.id, name: player2Data.name, symbol: "O" };
-    const game = new OAnQuanGame();
-
+    //const game = new OAnQuanGame();
+    const game = new GameWithHistory();
     const room = {
       id: roomId,
       players: [player1, player2],
@@ -284,8 +285,9 @@ function handleTimerExpires(io, room, expiredPlayer) {
 function performMove(io, room, cellIndex, direction) {
   const game = room.game;
   const newState = game.makeMove(cellIndex, direction);
+  const moveHistory = game.getMoveHistory ? game.getMoveHistory() : [];
   // <--- THÊM DÒNG NÀY: Lấy lịch sử nước đi
-  const moveHistory = game.getMoveHistory();
+  //const moveHistory = game.getMoveHistory();
   if (newState.isGameOver) {
     let winnerId = null;
     if (newState.winner === 1) winnerId = room.players[0].id;
@@ -327,6 +329,12 @@ function performMove(io, room, cellIndex, direction) {
 /**
  * (C -> S) Xử lý một nước đi
  */
+/**
+ * (C -> S) Xử lý một nước đi
+ */
+/**
+ * (C -> S) Xử lý một nước đi
+ */
 export const handleMakeMove = (io, socket, payload) => {
   const { roomId, cellIndex, direction } = payload;
   const room = rooms.get(roomId);
@@ -347,7 +355,7 @@ export const handleMakeMove = (io, socket, payload) => {
   const currentState = game.getState();
 
   if (currentState.currentPlayer !== playerNumber) {
-    timerManager.start(room); // Khởi động lại timer
+    timerManager.start(room); 
     return socket.emit("invalid_move", { message: "Không phải lượt của bạn!" });
   }
 
@@ -360,18 +368,11 @@ export const handleMakeMove = (io, socket, payload) => {
       senderName: "Hệ thống",
       message: `${playerName} đã chọn ô ${cellIndex} và đi về hướng ${directionText}.`
   });
-  // === [THÊM ĐOẠN NÀY] ===
-  // Lấy số lượng quân hiện tại để báo cho Client chạy Animation
-  const currentBoard = game.getState().board;
-  const seedsCount = currentBoard[cellIndex] ? currentBoard[cellIndex].dan : 0;
 
-  // Phát sự kiện animation cho TOÀN BỘ người trong phòng
-  io.to(room.id).emit("game:perform_animation", {
-    cellIndex: cellIndex,
-    direction: moveDirection,
-    count: seedsCount
-  });
-  // =======================
+  // --- [ĐÃ XÓA] Đoạn code phát sự kiện 'game:perform_animation' ở đây ---
+  // Chúng ta không cần nó nữa vì 'moveHistory' trong 'update_game_state'
+  // sẽ đảm nhiệm việc diễn hoạt chính xác hơn.
+
   performMove(io, room, cellIndex, moveDirection);
 };
 
