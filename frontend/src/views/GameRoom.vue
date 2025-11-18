@@ -236,7 +236,7 @@ function setupSocketListeners() {
   socketService.getSocket().on("room:player-joined", onPlayerJoined);
   socketService.getSocket().on("error", onError);
   socketService.getSocket().on("kicked_to_menu", onKicked);
-  
+  //.
   // 🔽🔽 THAY THẾ HOÀN TOÀN LISTENER CŨ 🔽🔽
   socketService.getSocket().on( // <--- (SỬA 1: Đã thêm .getSocket())
     'rpsResult',
