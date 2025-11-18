@@ -4,6 +4,7 @@
 export class OAnQuanGame {
   constructor() {
     this.state = this.getInitialState();
+    this.moveHistory = []; // <--- THÊM DÒNG NÀY: Để lưu kịch bản diễn hoạt
   }
 
   // =========================
@@ -47,6 +48,17 @@ export class OAnQuanGame {
     // Trả về bản copy để tránh sửa trực tiếp từ bên ngoài
     return JSON.parse(JSON.stringify(this.state));
   }
+  // === THÊM MỚI KHU VỰC NÀY ===
+  // Hàm lấy lịch sử để gửi cho client
+  getMoveHistory() {
+    return JSON.parse(JSON.stringify(this.moveHistory));
+  }
+
+  // Hàm ghi log hành động (dùng nội bộ)
+  _logAction(type, data = {}) {
+    this.moveHistory.push({ type, ...data });
+  }
+  // =============================
 
   // =========================
   // 2. HÀM HỖ TRỢ CƠ BẢN
@@ -178,6 +190,8 @@ export class OAnQuanGame {
     for (let i = 0; i < pieceCount; i++) {
       currentIndex = this.getValidIndex(currentIndex + direction);
       this.state.board[currentIndex].dan += 1;
+      // <--- THÊM DÒNG NÀY: Ghi nhận hành động rải 1 viên
+      this._logAction('SPREAD', { index: currentIndex });
     }
     return currentIndex;
   }
@@ -195,7 +209,8 @@ export class OAnQuanGame {
     const key = this.getPlayerScoreKey(player);
     this.state.scores[key].dan += eatenDan;
     this.state.scores[key].quan += eatenQuan;
-
+    // <--- THÊM DÒNG NÀY: Ghi nhận hành động ăn quân
+    this._logAction('CAPTURE', { index: index, eatenDan, eatenQuan });
     return { eatenDan, eatenQuan };
   }
 
@@ -208,6 +223,9 @@ export class OAnQuanGame {
    * direction: 1 (phải) hoặc -1 (trái)
    */
   makeMove(squareIndex, direction) {
+    // 👇👇👇 THÊM DÒNG NÀY VÀO ĐẦU HÀM 👇👇👇
+    this.moveHistory = []; // Reset lịch sử để ghi lại từ đầu cho lượt này
+    // 👆👆👆 ------------------------- 👆👆👆
     if (this.state.isGameOver) {
       this.state.gameMessage = "Ván đấu đã kết thúc. Không thể đi tiếp.";
       return this.getState();
@@ -239,6 +257,8 @@ export class OAnQuanGame {
     }
 
     this.state.board[squareIndex].dan = 0;
+    // <--- THÊM DÒNG NÀY: Ghi nhận bốc quân khởi đầu
+    this._logAction('PICK_UP', { index: squareIndex, count: pickedDan });
 
     // 4. Rải theo hướng
     let lastIndex = this.spreadPieces(squareIndex, dir, pickedDan);
@@ -260,6 +280,8 @@ export class OAnQuanGame {
         this.state.gameMessage =
           this.state.gameMessage ||
           `Người chơi ${currentPlayer} mất lượt vì ô kế tiếp (${next}) có Quan.`;
+        // <--- THÊM DÒNG NÀY: Ghi nhận dừng lại do gặp quan
+        this._logAction('STOP', { reason: 'MET_QUAN', index: next });
         continueTurn = false;
         break;
       }
@@ -269,7 +291,8 @@ export class OAnQuanGame {
       if (nextSq.dan > 0 && nextSq.quan === 0) {
         const extraDan = nextSq.dan;
         this.state.board[next].dan = 0;
-
+        // <--- THÊM DÒNG NÀY: Ghi nhận bốc tiếp
+        this._logAction('PICK_UP', { index: next, count: extraDan });
         lastIndex = this.spreadPieces(next, dir, extraDan);
         // Sau khi rải xong, quay lại while để xét next mới
         continue;
@@ -281,6 +304,8 @@ export class OAnQuanGame {
       const next2HasPieces = next2Sq.dan > 0 || next2Sq.quan > 0;
 
       if (nextIsEmpty && next2HasPieces) {
+        // <--- THÊM DÒNG NÀY: Di chuyển tay qua ô trống (next) để chuẩn bị ăn
+        this._logAction('MOVE_THROUGH_EMPTY', { index: next });
         // 5.3.1. Ăn lần đầu tiên (bắt buộc)
         const { eatenDan, eatenQuan } = this.captureAt(next2, currentPlayer);
         this.state.gameMessage = `Người chơi ${currentPlayer} ăn ${eatenQuan} Quan và ${eatenDan} Dân ở ô ${next2}.`;
@@ -306,6 +331,8 @@ export class OAnQuanGame {
             chainNext2Sq.dan > 0 || chainNext2Sq.quan > 0;
 
           if (chainNextIsEmpty && chainNext2HasPieces) {
+            // <--- THÊM DÒNG NÀY: Di chuyển qua ô trống tiếp theo (ăn dây)
+            this._logAction('MOVE_THROUGH_EMPTY', { index: chainNext });
             // Nếu đủ điều kiện -> Ăn tiếp!
             const { eatenDan, eatenQuan } = this.captureAt(
               chainNext2,
@@ -340,6 +367,8 @@ export class OAnQuanGame {
         this.state.gameMessage =
           this.state.gameMessage ||
           `Người chơi ${currentPlayer} mất lượt vì hai ô kế tiếp (${next}, ${next2}) đều trống.`;
+        // <--- THÊM DÒNG NÀY: Ghi nhận dừng lại do 2 ô trống
+        this._logAction('STOP', { reason: 'TWO_EMPTY', index: next });
         continueTurn = false;
         break;
       }

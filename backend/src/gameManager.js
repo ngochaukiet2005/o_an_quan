@@ -284,7 +284,8 @@ function handleTimerExpires(io, room, expiredPlayer) {
 function performMove(io, room, cellIndex, direction) {
   const game = room.game;
   const newState = game.makeMove(cellIndex, direction);
-
+  // <--- THÊM DÒNG NÀY: Lấy lịch sử nước đi
+  const moveHistory = game.getMoveHistory();
   if (newState.isGameOver) {
     let winnerId = null;
     if (newState.winner === 1) winnerId = room.players[0].id;
@@ -300,6 +301,8 @@ function performMove(io, room, cellIndex, direction) {
       reason: newState.winner === 0 ? "draw" : "win",
       finalScores: { player1: totalP1, player2: totalP2 },
       gameMessage: newState.gameMessage,
+      // <--- THÊM DÒNG NÀY: Để client diễn hoạt nốt nước đi cuối cùng
+      lastMoveHistory: moveHistory
     });
 
     timerManager.clear(room);
@@ -314,6 +317,8 @@ function performMove(io, room, cellIndex, direction) {
     scores: newState.scores,
     debt: newState.debt,
     gameMessage: newState.gameMessage,
+    // <--- THÊM DÒNG NÀY: Gửi kèm kịch bản diễn hoạt
+    moveHistory: moveHistory
   });
 
   timerManager.start(room);

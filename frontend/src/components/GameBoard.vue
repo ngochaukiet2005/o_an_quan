@@ -1,14 +1,22 @@
 <template>
   <div class="game-wrapper">
     <div class="board" v-if="board.length === 12" :class="playerViewClass">
+      
       <div
         :class="['cell', 'quan-cell', 'quan-left', { clickable: false }]"
         @click="handleClick(0)"
       >
+        <CellStones 
+          :quanCount="board[0].quan" 
+          :danCount="board[0].dan" 
+          :seed="0"
+        />
+        
         <span class="label">Ô 0 (Quan P2)</span>
-        <div class="stones">
-          <span class="quan-count">Q: {{ board[0].quan }}</span>
-          <span class="dan-count">D: {{ board[0].dan }}</span>
+        
+        <div class="stone-counter">
+          <span v-if="board[0].quan > 0" class="counter-quan">{{ board[0].quan }}</span>
+          <span v-if="board[0].dan > 0" class="counter-dan">{{ board[0].dan }}</span>
         </div>
       </div>
 
@@ -19,9 +27,16 @@
           :class="['cell', 'dan-cell', { clickable: isClickable(11 - i + 1) }]"
           @click="handleClick(11 - i + 1)"
         >
+          <CellStones 
+            :quanCount="0" 
+            :danCount="board[11 - i + 1].dan" 
+            :seed="11 - i + 1"
+          />
+
           <span class="label">Ô {{ 11 - i + 1 }}</span>
-          <div class="stones">
-            <span class="dan-count">D: {{ board[11 - i + 1].dan }}</span>
+          
+          <div class="stone-counter">
+            {{ board[11 - i + 1].dan }}
           </div>
         </div>
       </div>
@@ -33,9 +48,16 @@
           :class="['cell', 'dan-cell', { clickable: isClickable(i) }]"
           @click="handleClick(i)"
         >
+          <CellStones 
+            :quanCount="0" 
+            :danCount="board[i].dan" 
+            :seed="i"
+          />
+
           <span class="label">Ô {{ i }}</span>
-          <div class="stones">
-            <span class="dan-count">D: {{ board[i].dan }}</span>
+          
+          <div class="stone-counter">
+            {{ board[i].dan }}
           </div>
         </div>
       </div>
@@ -44,10 +66,17 @@
         :class="['cell', 'quan-cell', 'quan-right', { clickable: false }]"
         @click="handleClick(6)"
       >
+        <CellStones 
+          :quanCount="board[6].quan" 
+          :danCount="board[6].dan" 
+          :seed="6"
+        />
+
         <span class="label">Ô 6 (Quan P1)</span>
-        <div class="stones">
-          <span class="quan-count">Q: {{ board[6].quan }}</span>
-          <span class="dan-count">D: {{ board[6].dan }}</span>
+        
+        <div class="stone-counter">
+          <span v-if="board[6].quan > 0" class="counter-quan">{{ board[6].quan }}</span>
+          <span v-if="board[6].dan > 0" class="counter-dan">{{ board[6].dan }}</span>
         </div>
       </div>
     </div>
@@ -56,6 +85,7 @@
 
 <script setup>
 import { computed } from "vue";
+import CellStones from "./CellStones.vue"; // <-- 3. IMPORT COMPONENT MỚI
 
 const props = defineProps({
   board: {
@@ -137,7 +167,7 @@ function handleClick(index) {
 
 .board {
   display: grid;
-  grid-template-columns: 1fr 5fr 1fr; /* Cột Quan | 5 ô Dân | Cột Quan */
+  grid-template-columns: 1fr 5fr 1fr; 
   grid-template-rows: auto auto; 
   gap: 10px;
   max-width: 900px;
@@ -154,17 +184,25 @@ function handleClick(index) {
   gap: 10px;
 }
 
+/* === 4. CẬP NHẬT STYLE CHO Ô === */
 .cell {
-  padding: 14px 8px;
+  /* Thêm relative để chứa đá (absolute) */
+  position: relative; 
+  padding: 0; /* Xóa padding để đá có không gian */
+  overflow: hidden; /* Cắt phần đá tràn ra */
+  
   background: white;
   border-radius: 10px;
   border: 1px solid #d1d5db;
   font-size: 16px;
   min-height: 100px;
+  
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: space-between;
+  /* Đẩy label lên trên cùng */
+  justify-content: flex-start; 
+  
   cursor: not-allowed;
   transition: all 0.2s ease;
 }
@@ -178,70 +216,79 @@ function handleClick(index) {
   transform: translateY(-2px);
 }
 
+/* Label nằm mờ ở trên */
 .cell .label {
-  font-size: 0.8rem;
+  margin-top: 5px;
+  font-size: 0.7rem;
   font-weight: bold;
   color: #5d4037;
+  z-index: 200; /* Nổi trên đá */
+  opacity: 0.8;
+  pointer-events: none; /* Click xuyên qua label */
 }
 
-.cell .stones {
-  font-size: 1.5rem;
+/* === 5. STYLE CHO SỐ ĐẾM NHỎ Ở GÓC === */
+.stone-counter {
+  position: absolute;
+  bottom: 5px;
+  right: 5px;
+  z-index: 200;
+  
+  background-color: rgba(255, 255, 255, 0.9);
+  border: 1px solid #ccc;
+  border-radius: 50%;
+  min-width: 24px;
+  height: 24px;
+  
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  font-size: 0.85rem;
   font-weight: bold;
-}
-.dan-cell .stones {
-  font-size: 2rem;
+  color: #333;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.2);
 }
 
-.quan-count {
+.counter-quan {
   color: #d32f2f;
-  margin-right: 10px;
+  margin-right: 3px;
 }
-.dan-count {
+.counter-dan {
   color: #388e3c;
 }
 
-/* === CẬP NHẬT STYLE Ô QUAN (BÁN NGUYỆT) === */
+/* XÓA style cũ của .cell .stones (nếu không dùng nữa) */
+.cell .stones {
+  display: none; 
+}
+
+/* Style ô Quan (Bán nguyệt) - Giữ nguyên logic cũ */
 .quan-cell {
-  /* Kích thước cố định để tạo hình bán nguyệt đẹp */
   width: 90px; 
   min-height: 120px;
-  
-  /* Màu sắc nổi bật cho Quan */
-  background-color: #fcd34d !important; /* Sử dụng !important để đè màu trắng mặc định của .cell */
+  background-color: #fcd34d !important; 
   border: 4px solid #b45309;
   
-  justify-content: center;
-  /* Reset border-radius mặc định của .cell */
+  justify-content: flex-start; /* Sửa lại thành flex-start để label lên trên */
   border-radius: 0; 
 }
 
 .quan-left {
   grid-row: 1 / span 2; 
   grid-column: 1;
-  
-  /* Đẩy ô sang phải để sát vào khu vực dân */
   justify-self: end; 
-
-  /* Bo tròn 2 góc trái thật lớn */
   border-radius: 100px 0 0 100px; 
-  
-  /* Nếu muốn nối liền mạch (không có viền ngăn cách) thì dùng dòng dưới, 
-     nhưng vì grid có gap:10px nên giữ viền sẽ đẹp hơn */
-  /* border-right: none; */ 
 }
 
 .quan-right {
   grid-row: 1 / span 2; 
   grid-column: 3;
-
-  /* Đẩy ô sang trái để sát vào khu vực dân */
   justify-self: start;
-
-  /* Bo tròn 2 góc phải thật lớn */
   border-radius: 0 100px 100px 0;
 }
-/* ========================================== */
 
+/* Layout Hàng */
 .cell-row-a {
   grid-row: 1;
   grid-column: 2;
@@ -251,7 +298,7 @@ function handleClick(index) {
   grid-column: 2;
 }
 
-/* --- Bố cục Xoay cho P2 --- */
+/* --- Bố cục Xoay cho P2 (Giữ nguyên logic fix lỗi) --- */
 .p2-view {
   transform: rotate(180deg);
   transition: transform 0.5s ease;
@@ -265,13 +312,12 @@ function handleClick(index) {
   transform: rotate(180deg) translateY(2px);
   background-color: #f7f3e8;
 }
+
 .p2-view .quan-left {
-  /* Đang là cong trái, đổi thành cong PHẢI (để khi xoay 180 độ nó vẫn hướng ra ngoài) */
   border-radius: 0 100px 100px 0 !important; 
 }
 
 .p2-view .quan-right {
-  /* Đang là cong phải, đổi thành cong TRÁI */
   border-radius: 100px 0 0 100px !important;
 }
 </style>
