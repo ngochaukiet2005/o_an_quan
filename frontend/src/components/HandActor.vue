@@ -1,7 +1,7 @@
 <template>
   <div class="hand-actor" :style="style">
     <img :src="currentHandImage" alt="Hand" class="hand-img" />
-    <div v-if="holdingCount > 0" class="holding-stones">
+    <div v-if="holdingCount > 0" class="holding-stones" :style="counterStyle">
       <img src="/img/stone-dan.png" class="stone-icon" />
       <span>x{{ holdingCount }}</span>
     </div>
@@ -18,7 +18,8 @@ const props = defineProps({
   show: { type: Boolean, default: false },
   duration: { type: Number, default: 400 },
   // Nhận prop loại tay (normal hoặc slap)
-  handType: { type: String, default: 'normal' } 
+  handType: { type: String, default: 'normal' },
+  isRotated: { type: Boolean, default: false } 
 });
 
 const currentHandImage = computed(() => {
@@ -31,9 +32,16 @@ const currentHandImage = computed(() => {
 });
 
 const style = computed(() => ({
-  transform: `translate(${props.x}px, ${props.y}px)`,
+  transform: `translate(${props.x}px, ${props.y}px) rotate(${props.isRotated ? 180 : 0}deg)`,
   opacity: props.show ? 1 : 0,
   transition: `transform ${props.duration}ms linear, opacity 0.2s`
+}));
+// 👇 LOGIC MỚI: Style riêng cho số đá để xoay ngược lại
+const counterStyle = computed(() => ({
+  // Nếu cha xoay 180, con xoay -180 để trở về vị trí đứng thẳng
+  transform: `rotate(${props.isRotated ? -180 : 0}deg)`,
+  // Thêm transition để số xoay mượt mà (nếu muốn)
+  transition: 'transform 0.2s' 
 }));
 </script>
 
@@ -69,6 +77,7 @@ const style = computed(() => ({
   font-weight: bold;
   color: #333;
   white-space: nowrap;
+  z-index: 10000;
 }
 .stone-icon {
   width: 16px;

@@ -8,6 +8,7 @@
       :show="handState.show"
       :duration="handState.duration"
       :handType="handState.handType" 
+      :isRotated="isOpponentTurn"
     />
     <div class="board" v-if="displayBoard.length === 12" :class="playerViewClass">
        <div
@@ -109,7 +110,11 @@ const handState = reactive({
   duration: 500,
   handType: 'normal' // Chỉ dùng biến này để điều khiển ảnh
 });
-
+// 👇 TÍNH TOÁN: Nếu người đang đi (currentTurnId) KHÁC với bản thân mình (playerId) 
+// => Đó là đối thủ đang đi => Cần xoay tay
+const isOpponentTurn = computed(() => {
+  return props.currentTurnId && props.playerId && (props.currentTurnId !== props.playerId);
+});
 const displayBoard = ref([]);
 
 watch(() => props.board, (newVal) => {
