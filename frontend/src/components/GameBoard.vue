@@ -7,9 +7,8 @@
       :holdingCount="handState.holdingCount" 
       :show="handState.show"
       :duration="handState.duration"
-      :imageSrc="handState.image" 
+      :handType="handState.handType" 
     />
-    
     <div class="board" v-if="displayBoard.length === 12" :class="playerViewClass">
        <div
             :ref="(el) => cellRefs[0] = el" 
@@ -98,18 +97,17 @@ const props = defineProps({
 
 const emits = defineEmits(["move", "score-update"]);
 
-// === 1. QUẢN LÝ STATE ===
 const gameWrapperRef = ref(null);
 const cellRefs = reactive({});
 
-// Thêm thuộc tính 'image' vào handState
+// === SỬA STATE ===
 const handState = reactive({
   x: 0, 
   y: 0, 
   holdingCount: 0, 
   show: false, 
   duration: 500,
-  image: '/img/hand.png' // Ảnh mặc định
+  handType: 'normal' // Chỉ dùng biến này để điều khiển ảnh
 });
 
 const displayBoard = ref([]);
@@ -133,13 +131,13 @@ const getCellPos = (index) => {
 
 const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// === 3. LOGIC ANIMATION MỚI ===
+// === LOGIC ANIMATION ĐÃ CHỈNH SỬA ===
 const runMoveAnimation = async (history) => {
   if (!history || history.length === 0) return;
 
   handState.show = true;
   handState.holdingCount = 0;
-  handState.image = '/img/hand.png'; // Reset về ảnh thường
+  handState.handType = 'normal'; // Reset về tay thường
 
   // Di chuyển đến vị trí đầu tiên
   if (history[0]) {
@@ -153,16 +151,34 @@ const runMoveAnimation = async (history) => {
   for (const action of history) {
     const { type, index, count, direction, start, eatenDan, eatenQuan } = action;
 
+    // --- XỬ LÝ: DI CHUYỂN TỚI Ô TRỐNG (Move to Empty) ---
+    if (type === 'move_to_empty') {
+        const pos = getCellPos(index);
+        handState.duration = 500; // Bay tới
+        handState.x = pos.x;
+        handState.y = pos.y;
+        
+        await wait(500); // Đợi bay tới nơi
+
+        // ĐỔI ICON TAY (Hiệu ứng đập tay/chỉ tay)
+        handState.handType = 'slap'; 
+        
+        // Dừng lại lâu hơn một chút để người chơi nhận ra hành động
+        await wait(600);
+    }
+
     // --- A. BỐC QUÂN ---
-    if (type === 'pickup') {
+    else if (type === 'pickup') {
+      // Đảm bảo tay về trạng thái thường
+      handState.handType = 'normal'; 
+
       const pos = getCellPos(index);
       handState.duration = 500;
-      handState.image = '/img/hand.png';
       handState.x = pos.x;
       handState.y = pos.y;
       
-      await wait(500); // Bay đến
-      await wait(150); // Nghỉ
+      await wait(500); 
+      await wait(150); 
 
       handState.holdingCount += count;
       if (displayBoard.value[index]) {
@@ -177,15 +193,15 @@ const runMoveAnimation = async (history) => {
       let currentCell = start;
       let remaining = count;
       handState.duration = 450;
-      handState.image = '/img/hand.png';
+      handState.handType = 'normal';
 
       while (remaining > 0) {
         const pos = getCellPos(currentCell);
         handState.x = pos.x;
         handState.y = pos.y;
         
-        await wait(450); // Bay
-        await wait(200); // Dừng
+        await wait(450); 
+        await wait(200); 
 
         if (handState.holdingCount > 0) handState.holdingCount--;
         remaining--;
@@ -199,31 +215,13 @@ const runMoveAnimation = async (history) => {
       }
     }
 
-    // --- C. (MỚI) CHẠM Ô TRỐNG ---
-    else if (type === 'touch_empty') {
-       const pos = getCellPos(index);
-       handState.duration = 500;
-       handState.x = pos.x;
-       handState.y = pos.y;
-
-       await wait(500); // 1. Bay đến ô trống
-
-       // 2. Đổi sang icon đặc biệt (Ví dụ: Đập tay / Chỉ tay)
-       // Bạn hãy đổi tên file ảnh dưới đây thành file bạn sẽ upload
-       handState.image = '/img/hand-slap.png'; 
-       
-       // 3. Dừng lại để người chơi thấy hành động
-       await wait(600);
-
-       // 4. Đổi lại ảnh thường để chuẩn bị đi tiếp
-       handState.image = '/img/hand.png';
-    }
-
-    // --- D. ĂN QUÂN ---
+    // --- C. ĂN QUÂN ---
     else if (type === 'capture') {
+      // Chuyển lại tay thường trước khi bay sang ô ăn
+      handState.handType = 'normal';
+
       const pos = getCellPos(index);
       handState.duration = 500;
-      handState.image = '/img/hand.png'; // Đảm bảo ảnh là ảnh thường
       handState.x = pos.x;
       handState.y = pos.y;
       
@@ -243,14 +241,12 @@ const runMoveAnimation = async (history) => {
   }
 
   handState.show = false;
-  // Reset ảnh lần cuối cho chắc chắn
-  handState.image = '/img/hand.png'; 
+  handState.handType = 'normal'; // Reset cuối cùng
 };
 
 defineExpose({ runMoveAnimation });
 
-// ... (Các hàm computed và methods khác giữ nguyên) ...
-// === 4. LOGIC GAMEPLAY ===
+// === 4. LOGIC GAMEPLAY (Giữ nguyên) ===
 const myPlayerNumber = computed(() => {
   const me = props.players.find((p) => p.id === props.playerId);
   return me?.symbol === "X" ? 1 : 2;
@@ -279,7 +275,7 @@ function handleClick(index) {
 </script>
 
 <style scoped>
-/* ... Giữ nguyên style cũ ... */
+/* Giữ nguyên toàn bộ style của bạn */
 .game-wrapper {
   margin-top: 20px;
   text-align: center;

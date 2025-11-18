@@ -1,7 +1,6 @@
 <template>
   <div class="hand-actor" :style="style">
-    <img src="/img/hand.png" alt="Hand" class="hand-img" />
-    
+    <img :src="currentHandImage" alt="Hand" class="hand-img" />
     <div v-if="holdingCount > 0" class="holding-stones">
       <img src="/img/stone-dan.png" class="stone-icon" />
       <span>x{{ holdingCount }}</span>
@@ -17,15 +16,24 @@ const props = defineProps({
   y: { type: Number, default: 0 },
   holdingCount: { type: Number, default: 0 },
   show: { type: Boolean, default: false },
-  duration: { type: Number, default: 400 }, // Thêm prop này
-  imageSrc: { type: String, default: '/img/hand.png' }
+  duration: { type: Number, default: 400 },
+  // Nhận prop loại tay (normal hoặc slap)
+  handType: { type: String, default: 'normal' } 
+});
+
+const currentHandImage = computed(() => {
+  // 👇 Kiểm tra: nếu handType là 'slap' thì trả về ảnh đập tay
+  if (props.handType === 'slap') {
+    return '/img/hand-slap.png'; 
+  }
+  // Mặc định trả về ảnh tay thường
+  return '/img/hand.png'; 
 });
 
 const style = computed(() => ({
   transform: `translate(${props.x}px, ${props.y}px)`,
   opacity: props.show ? 1 : 0,
-  // Dùng transition để tạo hiệu ứng lướt đi
-  transition: `transform ${props.duration}ms linear, opacity 0.2s` // Dùng linear cho rải quân đều hơn 
+  transition: `transform ${props.duration}ms linear, opacity 0.2s`
 }));
 </script>
 
@@ -34,17 +42,16 @@ const style = computed(() => ({
   position: absolute;
   top: 0;
   left: 0;
-  width: 0; /* Size 0 để x,y là tâm điểm */
+  width: 0;
   height: 0;
-  z-index: 9999; /* Luôn nổi lên trên cùng */
+  z-index: 9999;
   pointer-events: none;
 }
 
 .hand-img {
-  width: 80px; /* Kích thước bàn tay */
+  width: 80px;
   height: auto;
-  /* Căn chỉnh để mũi trỏ của bàn tay trùng với tọa độ x,y */
-  transform: translate(-50%, -60%); 
+  transform: translate(-50%, -60%);
   filter: drop-shadow(2px 4px 6px rgba(0,0,0,0.4));
 }
 
