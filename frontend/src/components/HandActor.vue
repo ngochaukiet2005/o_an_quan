@@ -43,7 +43,7 @@ const style = computed(() => ({
   width: 80px; /* Kích thước bàn tay */
   height: auto;
   /* Căn chỉnh để mũi trỏ của bàn tay trùng với tọa độ x,y */
-  transform: translate(-20%, -10%); 
+  transform: translate(-50%, -60%); 
   filter: drop-shadow(2px 4px 6px rgba(0,0,0,0.4));
 }
 

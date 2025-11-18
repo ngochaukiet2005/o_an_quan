@@ -32,6 +32,7 @@
           :currentTurnId="currentTurnId"
           :playerId="playerId"
           @move="handleMove"
+          @score-update="handleLiveScoreUpdate"
         />
         <div v-else class="loading-board">
           Đang chờ dữ liệu bàn cờ từ server...
@@ -152,6 +153,26 @@ function setupSocketListeners() {
       }
 
       if (gameBoardRef.value) {
+        // 👇👇👇 BẮT ĐẦU ĐOẠN CODE MỚI 👇👇👇
+        // Tính toán: Lấy điểm cuối cùng - tổng điểm ăn được = điểm lúc bắt đầu
+        // Giúp hiển thị ngay việc bị trừ điểm (nếu có vay/gây giống)
+        const actingPlayerId = data.startingPlayerId || currentTurnId.value;
+        const earnedPoints = calculateTurnPoints(data.moveHistory);
+        
+        const pIndex = players.value.findIndex(p => p.id === actingPlayerId);
+        
+        if (pIndex !== -1) {
+           // Lấy điểm cuối cùng Server gửi về để tính ngược
+           let finalScoreObj = null;
+           if (players.value[pIndex].symbol === 'X') finalScoreObj = data.scores.player1;
+           else finalScoreObj = data.scores.player2;
+           
+           const finalTotalScore = finalScoreObj ? (finalScoreObj.quan * 5 + finalScoreObj.dan) : 0;
+           
+           // Cập nhật điểm lùi lại để chuẩn bị cộng dần lên khi ăn
+           players.value[pIndex].score = finalTotalScore - earnedPoints;
+        }
+        // 👆👆👆 KẾT THÚC ĐOẠN CODE MỚI 👆👆👆
         // BẮT ĐẦU DIỄN HOẠT
         isAnimating.value = true;
         console.log("🎬 Bắt đầu diễn hoạt...");
@@ -256,7 +277,27 @@ function startTimerCountDown(data) {
 // ===============================
 //      LOGIC CẬP NHẬT UI
 // ===============================
+// === THÊM MỚI 2 HÀM NÀY ===
 
+// 1. Hàm tính tổng điểm sẽ ăn được trong lượt này (dựa vào lịch sử)
+function calculateTurnPoints(history) {
+  let total = 0;
+  history.forEach(step => {
+    if (step.type === 'capture') {
+      total += (step.eatenQuan * 5) + step.eatenDan;
+    }
+  });
+  return total;
+}
+
+// 2. Hàm xử lý cộng điểm trực tiếp khi Animation đang chạy
+function handleLiveScoreUpdate({ points }) {
+  // Cộng ngay điểm vào người đang chơi (dựa trên currentTurnId)
+  const player = players.value.find(p => p.id === currentTurnId.value);
+  if (player) {
+    player.score += points;
+  }
+}
 function handleStateUpdate(state) {
   gamePhase.value = "playing";
 

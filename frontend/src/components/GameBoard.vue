@@ -96,7 +96,7 @@ const props = defineProps({
   playerId: { type: String, default: "" },
 });
 
-const emits = defineEmits(["move"]);
+const emits = defineEmits(["move", "score-update"]);
 
 // === 1. QUẢN LÝ STATE ===
 const gameWrapperRef = ref(null);
@@ -217,6 +217,11 @@ const runMoveAnimation = async (history) => {
          displayBoard.value[index].dan = 0;
          displayBoard.value[index].quan = 0;
       }
+      // 👇👇👇 THÊM ĐOẠN NÀY 👇👇👇
+      // Gửi sự kiện cộng điểm ngay lập tức
+      const points = (eatenQuan * 5) + eatenDan;
+      emits('score-update', { points });
+      // 👆👆👆 ----------------- 👆👆👆
       console.log(`Đã ăn tại ô ${index}: ${eatenQuan} Quan, ${eatenDan} Dân`);
       
       await wait(600); // Dừng lâu hơn chút để tận hưởng cảm giác ăn quân
