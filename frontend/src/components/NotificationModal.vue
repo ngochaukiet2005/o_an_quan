@@ -1,11 +1,12 @@
 <template>
   <div v-if="show" class="overlay">
     <div class="victory-card">
-      <div class="icon">🏆</div>
-      <h2>{{ title }}</h2>
+      <div class="icon">🔔</div> <h2>{{ title }}</h2>
       <div class="divider"></div>
       <p>{{ message }}</p>
-      <button @click="$emit('close')">Về trang chủ</button>
+      <button @click="$emit('close')">
+        {{ title === 'Lỗi' ? 'Đóng' : 'Đồng ý' }}
+      </button>
     </div>
   </div>
 </template>

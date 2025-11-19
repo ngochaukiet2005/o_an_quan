@@ -485,10 +485,19 @@ export const handleRequestGameState = (io, socket, roomId) => {
     return;
   }
   
+  // 👇👇👇 SỬA ĐOẠN NÀY 👇👇👇
   if (room.status === "waiting") {
-     socket.emit("error", { message: "Đang chờ người chơi khác..." });
+     // KHÔNG gửi lỗi "Đang chờ..." nữa vì nó sẽ làm hiện Popup Lỗi
+     // Thay vào đó, gửi lại sự kiện 'room:joined' để cập nhật danh sách người chơi cho chắc chắn
+     socket.emit("room:joined", {
+        roomId: room.id,
+        playerId: socket.id, // Đảm bảo gửi đúng ID (có thể là ID mới nếu reconnect)
+        playerSymbol: room.players.find(p => p.id === socket.id)?.symbol || "X",
+        players: room.players, 
+     });
      return;
   }
+  // 👆👆👆 KẾT THÚC SỬA 👆👆👆
 
   if (room.status === "playing") {
     const currentState = room.game.getState();
