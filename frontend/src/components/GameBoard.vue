@@ -244,7 +244,6 @@ const runMoveAnimation = async (history) => {
       await wait(600); 
     }
   }
-
   handState.show = false;
   handState.handType = 'normal'; // Reset cuối cùng
 };

@@ -15,7 +15,41 @@ export class GameWithHistory extends OAnQuanGame {
     this.moveHistory = []; 
     return history;
   }
+  // THÊM PHƯƠNG THỨC NÀY
+  _recordFinalSweep() {
+    const s = this.state;
+    // P1 Squares: 1-5 (phía dưới trên màn hình P1)
+    const player1Squares = this.getPlayerCivilianSquares(1); 
+    // P2 Squares: 7-11 (phía trên trên màn hình P1)
+    const player2Squares = this.getPlayerCivilianSquares(2);
+    
+    // Thu quân P1 (Sẽ bay xuống trên màn hình P1)
+    player1Squares.forEach((index) => {
+        const count = s.board[index].dan;
+        if (count > 0) {
+            this.moveHistory.push({ 
+                type: "final_sweep", 
+                index: index, 
+                count: count,
+                player: 1, 
+            });
+        }
+    });
 
+    // Thu quân P2 (Sẽ bay lên trên màn hình P1)
+    player2Squares.forEach((index) => {
+        const count = s.board[index].dan;
+        if (count > 0) {
+            this.moveHistory.push({ 
+                type: "final_sweep", 
+                index: index, 
+                count: count,
+                player: 2, 
+            });
+        }
+    });
+  }
+  // KẾT THÚC PHƯƠNG THỨC MỚI
   // Ghi đè hàm makeMove để chèn logic ghi log
   makeMove(squareIndex, direction) {
     // Reset lịch sử mỗi đầu lượt
@@ -171,7 +205,13 @@ export class GameWithHistory extends OAnQuanGame {
 
     // 6. Kết thúc ván
     this.checkGameEnd();
-
+    // 👇👇👇 HACK: Ép kết thúc ván ngay lập tức để test 👇👇👇
+    // Xóa sạch 2 quan
+    this.state.board[0].quan = 0; 
+    this.state.board[0].dan = 0;
+    this.state.board[6].quan = 0;
+    this.state.board[6].dan = 0;
+    // 👆👆👆 ------------------------------------------- 👆👆👆
     if (this.state.isGameOver) {
       this.calculateFinalScores();
     } else {

@@ -9,7 +9,14 @@
       </div>
       <button @click="onLeaveRoomClick" class="leave-button">Thoát phòng</button>
     </div>
-
+    <!-- Nút DEV để test animation thu quân cuối ván -->
+    <button 
+    @click="testFinalAnimation" 
+    style="margin-top: 10px; background: purple; color: white; padding: 10px; border-radius: 5px; cursor: pointer;"
+    >
+    ⚡ DEV: Test Thu Quân
+    </button>
+    <!---------------------------------------------------->
     <div v-if="gamePhase === 'playing'" class="game-layout">
       <div class="main-column">
         
@@ -76,7 +83,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, computed, watch } from "vue";
+//import { ref, onMounted, onBeforeUnmount, computed, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import socketService from "../services/socketService";
 
@@ -136,7 +143,60 @@ const gameOverMessage = ref("");
 // ===============================
 //        SOCKET LISTENERS
 // ===============================
+// nút test DEV====================================
+import { ref, onMounted, onBeforeUnmount, computed, watch, nextTick } from "vue"; // <-- Thêm nextTick
+async function testFinalAnimation() {
+  console.log("⚡ Đang giả lập kết thúc ván...");
 
+  // 1. Tạo bàn cờ giả: 2 ô quan trống, các ô dân có vài viên đá để bay
+  const dummyBoard = Array(12).fill(null).map((_, i) => {
+    // Mặc định trống
+    let cell = { dan: 0, quan: 0 };
+
+    // Ô Quan (0 và 6) phải trống để đúng luật kết thúc
+    if (i === 0 || i === 6) return cell;
+
+    // Thêm đá vào vài ô dân để test hiệu ứng
+    // P1 (ô 1-5), P2 (ô 7-11)
+    if (i === 1) cell.dan = 5; // Ô của P1
+    if (i === 3) cell.dan = 3; // Ô của P1
+    if (i === 8) cell.dan = 4; // Ô của P2
+    if (i === 10) cell.dan = 2; // Ô của P2
+
+    return cell;
+  });
+
+  // 2. Cập nhật bàn cờ lên giao diện
+  board.value = dummyBoard;
+
+  // Chờ Vue vẽ lại DOM (để có các viên đá .stone-dan thật trên màn hình)
+  await nextTick();
+
+  // 3. Tạo kịch bản lịch sử giả (Server sẽ gửi dạng này)
+  const mockHistory = [
+    // Thu quân P1 (Bay xuống)
+    { type: 'final_sweep', index: 1, count: 5, player: 1 },
+    { type: 'final_sweep', index: 3, count: 3, player: 1 },
+
+    // Thu quân P2 (Bay lên)
+    { type: 'final_sweep', index: 8, count: 4, player: 2 },
+    { type: 'final_sweep', index: 10, count: 2, player: 2 },
+  ];
+
+  // 4. Gọi hàm diễn hoạt trên GameBoard
+  if (gameBoardRef.value) {
+     // Giả lập đối tượng data từ server trả về
+     const mockGameOverData = {
+         winner: players.value[0]?.id || 'test',
+         gameMessage: "Game Over Test",
+         lastMoveHistory: mockHistory
+     };
+
+     // Gọi hàm xử lý Game Over thật của bạn để test toàn bộ luồng
+     onGameOver(mockGameOverData);
+  }
+}
+// kết thúc test dev =======================================
 function setupSocketListeners() {
   socketService.offAll();
   const socket = socketService.getSocket();
@@ -406,11 +466,44 @@ function onDirectionChosen(direction) {
 function sendMessage(text) {
   socketService.sendMessage(roomId.value, playerName.value, text);
 }
-
+// THÊM HÀM TRỢ GIÚP ĐỂ HIỂN THỊ MODAL SAU KHI ANIMATION XONG
+function showFinalModal(data) {
+    const p1 = players.value.find((p) => p.symbol === "X");
+    const p2 = players.value.find((p) => p.symbol === "O");
+    let winnerName = "Hòa!";
+    
+    if (p1 && data.winner === p1.id) winnerName = `${p1.name} thắng!`;
+    if (p2 && data.winner === p2.id) winnerName = `${p2.name} thắng!`;
+    gamePhase.value = "game_over";
+    gameOverTitle.value = winnerName;
+    gameOverMessage.value = `${data.gameMessage}`;
+    showGameOverModal.value = true;
+}
 function onGameOver(data) {
-  gamePhase.value = "game_over";
+  //gamePhase.value = "game_over";
   clearInterval(timerInterval.value);
   
+  // New logic: Run final sweep animation if history exists
+  if (data.lastMoveHistory && data.lastMoveHistory.length > 0 && gameBoardRef.value) {
+    // Nếu có lịch sử diễn hoạt (bao gồm cả final_sweep), chạy nó
+      console.log("🎬 Kích hoạt animation thu quân cuối ván...");
+      isAnimating.value = true;
+      // Chạy animation (await đợi cho đến khi xong hết)
+      gameBoardRef.value.runMoveAnimation(data.lastMoveHistory)
+        .then(() => {
+            isAnimating.value = false;
+            // Sau khi animation xong, hiển thị modal
+            showFinalModal(data);
+        })
+        .catch(err => {
+            console.error("Final animation error:", err);
+            isAnimating.value = false;
+            showFinalModal(data); // Fallback
+        });
+  } else {
+    // Nếu không có lịch sử, hiển thị modal ngay
+    showFinalModal(data);
+  }
   const p1 = players.value.find((p) => p.symbol === "X");
   const p2 = players.value.find((p) => p.symbol === "O");
   let winnerName = "Hòa!";
