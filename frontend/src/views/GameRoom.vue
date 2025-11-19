@@ -504,7 +504,7 @@ function onGameOver(data) {
     // Nếu không có lịch sử, hiển thị modal ngay
     showFinalModal(data);
   }
-  const p1 = players.value.find((p) => p.symbol === "X");
+  /*const p1 = players.value.find((p) => p.symbol === "X");
   const p2 = players.value.find((p) => p.symbol === "O");
   let winnerName = "Hòa!";
   
@@ -513,7 +513,7 @@ function onGameOver(data) {
 
   gameOverTitle.value = winnerName;
   gameOverMessage.value = `${data.gameMessage}`;
-  showGameOverModal.value = true;
+  showGameOverModal.value = true;*/
 }
 
 function onLeaveRoomClick() {

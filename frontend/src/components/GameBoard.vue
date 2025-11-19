@@ -8,7 +8,7 @@
       :show="handState.show"
       :duration="handState.duration"
       :handType="handState.handType" 
-      :isRotated="isOpponentTurn"
+      :isRotated="handState.useCustomRotation ? handState.customIsRotated : isOpponentTurn"
     />
     <div class="board" v-if="displayBoard.length === 12" :class="playerViewClass">
        <div
@@ -108,7 +108,10 @@ const handState = reactive({
   holdingCount: 0, 
   show: false, 
   duration: 500,
-  handType: 'normal' // Chỉ dùng biến này để điều khiển ảnh
+  handType: 'normal', // Chỉ dùng biến này để điều khiển ảnh
+  // 👇 THÊM 2 DÒNG NÀY 👇
+  useCustomRotation: false, // Cờ để bật chế độ tự chỉnh góc xoay
+  customIsRotated: false,   // Giá trị góc xoay mong muốn (true = xoay 180)
 });
 // 👇 TÍNH TOÁN: Nếu người đang đi (currentTurnId) KHÁC với bản thân mình (playerId) 
 // => Đó là đối thủ đang đi => Cần xoay tay
@@ -243,9 +246,49 @@ const runMoveAnimation = async (history) => {
       
       await wait(600); 
     }
+    // 👇👇👇 SỬA LẠI ĐOẠN NÀY 👇👇👇
+    else if (type === 'final_sweep') {
+        // --- D. THU QUÂN CUỐI VÁN ---
+        
+        // 1. QUAN TRỌNG NHẤT: Bật chế độ tự chỉnh góc xoay
+        handState.useCustomRotation = true; 
+
+        // 2. Tính toán: 
+        // - Quân đối thủ (khác số mình) -> Xoay 180 (customIsRotated = true)
+        // - Quân mình (bằng số mình) -> Thẳng đứng (customIsRotated = false)
+        if (action.player !== myPlayerNumber.value) {
+            handState.customIsRotated = true; 
+        } else {
+            handState.customIsRotated = false; 
+        }
+
+        handState.handType = 'normal';
+        
+        // 3. Di chuyển tay đến ô cần thu
+        const pos = getCellPos(index);
+        handState.duration = 400; 
+        handState.x = pos.x;
+        handState.y = pos.y;
+        
+        await wait(400); 
+        
+        // 4. Hiệu ứng "hút" quân
+        if (displayBoard.value[index]) {
+            const totalStones = displayBoard.value[index].dan + (displayBoard.value[index].quan || 0);
+            
+            displayBoard.value[index].dan = 0;
+            displayBoard.value[index].quan = 0;
+            
+            handState.holdingCount += totalStones;
+        }
+        
+        await wait(300); 
+    }
+    // 👆👆👆 KẾT THÚC ĐOẠN SỬA 👆👆👆
   }
   handState.show = false;
   handState.handType = 'normal'; // Reset cuối cùng
+  handState.useCustomRotation = false;
 };
 
 defineExpose({ runMoveAnimation });
