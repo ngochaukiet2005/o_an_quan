@@ -367,8 +367,17 @@ function handleClick(index) {
 }
 
 .cell.clickable {
-  cursor: pointer;
+  cursor: grab;
   border-color: #10b981;
+}
+/* 👇 Thêm style cho trạng thái đang nhấn chuột (active) */
+.cell.clickable:active {
+  cursor: grabbing; /* Bàn tay nắm lại (co vô) */
+  cursor: -webkit-grabbing; /* Hỗ trợ thêm cho một số trình duyệt */
+  
+  /* Tùy chọn: Thêm hiệu ứng lún xuống nhẹ để cảm giác bấm thật hơn */
+  transform: translateY(0) scale(0.98); 
+  background-color: #e6fffa;
 }
 .cell.clickable:hover {
   background-color: #f7f3e8;

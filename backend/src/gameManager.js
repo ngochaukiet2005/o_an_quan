@@ -234,7 +234,7 @@ export const handleSubmitRps = (io, socket, payload) => {
       room.rpsGame = null;
       timerManager.start(room);
 
-    }, 5000); // Đợi 4 giây (bạn có thể chỉnh 3000-5000ms tùy ý)
+    }, 2000); // Đợi 4 giây (bạn có thể chỉnh 3000-5000ms tùy ý)
 
     // ===================================================
     // 🔼 KẾT THÚC THAY ĐỔI 🔼

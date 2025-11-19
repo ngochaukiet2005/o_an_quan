@@ -202,13 +202,6 @@ export class GameWithHistory extends OAnQuanGame {
       continueTurn = false;
       break;
     }
-    // 👇👇👇 HACK: Ép kết thúc ván ngay lập tức để test 👇👇👇
-    // Xóa sạch 2 quan
-    this.state.board[0].quan = 0; 
-    this.state.board[0].dan = 0;
-    this.state.board[6].quan = 0;
-    this.state.board[6].dan = 0;
-    // 👆👆👆 ------------------------------------------- 👆👆👆
     // 6. Kết thúc ván
     this.checkGameEnd();
     if (this.state.isGameOver) {
