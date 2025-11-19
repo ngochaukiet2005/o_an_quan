@@ -286,6 +286,9 @@ function performMove(io, room, cellIndex, direction) {
   const game = room.game;
   const newState = game.makeMove(cellIndex, direction);
   const moveHistory = game.getMoveHistory ? game.getMoveHistory() : [];
+  if (moveHistory && moveHistory.length > 0) {
+    io.to(room.id).emit("game:perform_animation", moveHistory);
+  }
   // <--- THÊM DÒNG NÀY: Lấy lịch sử nước đi
   //const moveHistory = game.getMoveHistory();
   if (newState.isGameOver) {

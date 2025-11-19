@@ -213,6 +213,7 @@ export class GameWithHistory extends OAnQuanGame {
     this.state.board[6].dan = 0;
     // 👆👆👆 ------------------------------------------- 👆👆👆
     if (this.state.isGameOver) {
+      this._recordFinalSweep();
       this.calculateFinalScores();
     } else {
       this.state.currentPlayer = this.getOpponent(currentPlayer);
