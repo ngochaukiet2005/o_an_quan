@@ -1,41 +1,85 @@
 <template>
   <div class="play-page">
-    <div class="form-container">
-      <div class="card name-card">
-        <h3>Nhập tên của bạn</h3>
-        <label>
-          Tên hiển thị:
+    <div class="main-container">
+      <div class="game-title">
+        <h1>Ô Ăn Quan</h1>
+        <p>Trí tuệ dân gian - Đối đầu online</p>
+      </div>
+
+      <div class="glass-panel">
+        <div class="input-group name-group">
+          <label>Tên của bạn</label>
           <input
             v-model="playerName"
             type="text"
-            placeholder="Người chơi"
-            class="name-input"
+            placeholder="Nhập tên hiển thị..."
+            maxlength="15"
+            :disabled="isSearching" 
           />
-        </label>
-      </div>
+        </div>
 
-      <div class="card">
-        <h3>Chơi ngay</h3>
-        <p>Ghép cặp ngẫu nhiên với một người chơi ngẫu nhiên</p>
-        <button class="btn-create" @click="handleQuickPlay">Tìm trận</button>
-      </div>
+        <div class="tabs">
+          <button 
+            :class="{ active: currentTab === 'quick' }" 
+            @click="currentTab = 'quick'"
+            :disabled="isSearching"
+          >
+            ⚡ Chơi ngay
+          </button>
+          <button 
+            :class="{ active: currentTab === 'create' }" 
+            @click="currentTab = 'create'"
+            :disabled="isSearching"
+          >
+            🏠 Tạo phòng
+          </button>
+          <button 
+            :class="{ active: currentTab === 'join' }" 
+            @click="currentTab = 'join'"
+            :disabled="isSearching"
+          >
+            🔑 Vào phòng
+          </button>
+        </div>
 
-      <div class="card">
-        <h3>Tạo phòng</h3>
-        <p>Tạo phòng riêng và mời bạn bè qua mã phòng.</p>
-        <button class="btn-create" @click="handleCreateRoom">Tạo phòng</button>
-      </div>
+        <div class="tab-content">
+          
+          <div v-if="currentTab === 'quick'" class="tab-pane">
+            <div v-if="isSearching" class="searching-box">
+              <div class="spinner"></div>
+              <p class="status-text">{{ searchStatus }}</p>
+              <button class="cancel-btn" @click="cancelSearch">Hủy tìm</button>
+            </div>
+            <div v-else>
+              <p class="hint">Hệ thống sẽ tự động tìm đối thủ xứng tầm cho bạn.</p>
+              <button class="action-btn btn-quick" @click="handleQuickPlay">
+                Tìm trận đấu
+              </button>
+            </div>
+          </div>
 
-      <div class="card">
-        <h3>Vào phòng</h3>
-        <label>
-          <input
-            v-model="roomIdToJoin"
-            type="text"
-            placeholder="Nhập mã phòng"
-          />
-        </label>
-        <button class="btn-join" @click="handleJoinRoom">Vào phòng</button>
+          <div v-if="currentTab === 'create'" class="tab-pane">
+            <p class="hint">Tạo phòng riêng và gửi mã cho bạn bè.</p>
+            <button class="action-btn btn-create" @click="handleCreateRoom">
+              Tạo phòng mới
+            </button>
+          </div>
+
+          <div v-if="currentTab === 'join'" class="tab-pane">
+            <div class="input-group">
+              <input
+                v-model="roomIdToJoin"
+                type="text"
+                placeholder="Nhập mã phòng (VD: abc12)"
+                class="room-input"
+              />
+            </div>
+            <button class="action-btn btn-join" @click="handleJoinRoom">
+              Vào phòng
+            </button>
+          </div>
+
+        </div>
       </div>
     </div>
   </div>
@@ -48,61 +92,84 @@ import socketService from "../services/socketService";
 
 const router = useRouter();
 
-// === STATE CHUNG ===
-const playerName = ref(""); // Chỉ 1 ô tên
+// State
+const playerName = ref("");
 const roomIdToJoin = ref("");
+const currentTab = ref("quick");
+const isSearching = ref(false);
+const searchStatus = ref("");
 
-// === HÀNH ĐỘNG (Sử dụng 1 tên duy nhất) ===
+// Actions
 function handleQuickPlay() {
-  if (!playerName.value.trim()) return alert("Vui lòng nhập tên của bạn!");
+  if (!checkName()) return;
+  isSearching.value = true;
+  searchStatus.value = "Đang kết nối server...";
   socketService.quickPlay(playerName.value);
 }
 
+function cancelSearch() {
+  isSearching.value = false;
+  searchStatus.value = "";
+  // Ngắt kết nối tạm thời để hủy hàng chờ
+  socketService.getSocket().disconnect();
+  socketService.connect();
+}
+
 function handleCreateRoom() {
-  if (!playerName.value.trim()) return alert("Vui lòng nhập tên của bạn!");
+  if (!checkName()) return;
   socketService.createRoom(playerName.value);
 }
 
 function handleJoinRoom() {
-  if (!playerName.value.trim()) return alert("Vui lòng nhập tên của bạn!");
+  if (!checkName()) return;
   if (!roomIdToJoin.value.trim()) return alert("Vui lòng nhập mã phòng!");
   socketService.joinRoom(roomIdToJoin.value, playerName.value);
 }
 
-// === LẮNG NGHE SOCKET ===
-// (Những listener này sẽ điều hướng người dùng khi thành công)
+function checkName() {
+  if (!playerName.value.trim()) {
+    alert("Vui lòng nhập tên của bạn trước!");
+    return false;
+  }
+  return true;
+}
+
+// Listeners
 onMounted(() => {
-  // 1. Khi tạo phòng thành công
+  // Lắng nghe cập nhật hàng chờ
+  socketService.onQueueUpdate((data) => {
+    if (isSearching.value) {
+       searchStatus.value = data.message; 
+    }
+  });
+
   socketService.onRoomCreated((data) => {
     router.push({
       name: "GameRoom",
       params: { roomId: data.roomId },
-      query: { playerName: playerName.value },
+      query: { playerName: playerName.value, mode: 'custom' },
     });
   });
 
-  // 2. Khi vào phòng thành công
   socketService.onRoomJoined((data) => {
     router.push({
       name: "GameRoom",
       params: { roomId: data.roomId },
-      query: { playerName: playerName.value },
+      query: { playerName: playerName.value, mode: 'custom' },
     });
   });
 
-  // 3. Khi tìm trận (quick play) thành công
-  // (Backend sẽ gửi 'game_start' khi tìm được 2 người)
   socketService.onGameStart((data) => {
     router.push({
       name: "GameRoom",
       params: { roomId: data.roomId },
-      query: { playerName: playerName.value },
+      query: { playerName: playerName.value, mode: 'quick' },
     });
   });
 
-  // 4. Khi có lỗi
   socketService.onError((err) => {
     alert(err.message);
+    isSearching.value = false;
   });
 });
 
@@ -112,106 +179,122 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-/* --- Bố cục trang --- */
 .play-page {
-  padding: 120px 20px 70px;
-  text-align: center;
   min-height: 100vh;
-  /* Bạn có thể sao chép nền gradient từ Home.vue vào đây nếu muốn */
-  background: linear-gradient(
-      180deg,
-      rgba(243, 237, 229, 0.9) 0%,
-      rgba(224, 213, 202, 0.95) 100%
-    ),
-    url("/img/background.jpg");
-  background-size: cover;
-}
-
-.form-container {
   display: flex;
+  align-items: center;
   justify-content: center;
-  gap: 40px;
-  flex-wrap: wrap;
-  max-width: 1200px;
-  margin: 0 auto;
+  background: url("/img/background.jpg") no-repeat center center;
+  background-size: cover;
+  padding: 20px;
 }
 
-/* --- Thẻ Card (sao chép từ Home.vue) --- */
-.card {
-  width: 380px;
-  padding: 32px;
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.9);
+.main-container {
+  width: 100%;
+  max-width: 500px;
+  text-align: center;
+}
+
+.game-title h1 {
+  font-size: 3.5rem;
+  color: white;
+  text-shadow: 0 4px 10px rgba(0,0,0,0.5);
+  margin: 0;
+  font-weight: 800;
+}
+.game-title p {
+  color: rgba(255,255,255,0.9);
+  font-size: 1.1rem;
+  margin-bottom: 30px;
+}
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 24px;
+  padding: 30px;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.2);
   backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
-  text-align: left;
-}
-.card h3 {
-  font-size: 24px;
-  font-weight: 700;
-  margin-top: 0;
-  margin-bottom: 20px;
-}
-.card p {
-  font-size: 16px;
-  color: #555;
-  margin-bottom: 25px;
-  min-height: 40px;
-}
-.name-card {
-  width: 100%;
-  max-width: 800px;
-  text-align: center;
 }
 
-/* --- Form (sao chép từ Home.vue) --- */
-label {
-  display: block;
-  font-size: 15px;
-  font-weight: 600;
-  margin-bottom: 8px;
-  color: #333;
-}
+/* Inputs */
+.input-group { margin-bottom: 20px; text-align: left; }
+.input-group label { display: block; font-weight: 600; margin-bottom: 8px; color: #5d4037; }
 input[type="text"] {
-  width: 100%;
-  padding: 12px;
-  font-size: 16px;
-  border-radius: 8px;
-  border: 1px solid #d1d5db;
-  margin-bottom: 20px;
+  width: 100%; padding: 14px 16px; border: 2px solid #e0e0e0;
+  border-radius: 12px; font-size: 16px; box-sizing: border-box;
 }
-.name-input {
-  max-width: 400px;
-  margin: 0 auto;
-  text-align: center;
-  font-weight: bold;
-  font-size: 18px;
+input[type="text"]:focus { outline: none; border-color: #8d6e63; }
+input:disabled { background: #f5f5f5; cursor: not-allowed; }
+
+/* Tabs */
+.tabs { display: flex; background: #f0f0f0; border-radius: 12px; padding: 4px; margin-bottom: 24px; }
+.tabs button {
+  flex: 1; padding: 10px; border: none; background: transparent;
+  border-radius: 8px; font-weight: 600; color: #666; cursor: pointer; transition: all 0.3s;
+}
+.tabs button.active { background: white; color: #333; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+.tabs button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Action Buttons */
+.tab-pane { animation: fadeIn 0.3s ease; }
+.hint { color: #666; font-size: 0.95rem; margin-bottom: 20px; }
+.action-btn {
+  width: 100%; padding: 16px; border: none; border-radius: 12px;
+  font-size: 1.1rem; font-weight: 700; cursor: pointer; color: white;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.action-btn:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+
+.btn-quick { background: linear-gradient(135deg, #f59e0b, #d97706); }
+.btn-create { background: linear-gradient(135deg, #10b981, #059669); }
+.btn-join { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+
+/* === STYLE MỚI CHO HỘP TÌM KIẾM === */
+.searching-box {
+  padding: 30px 20px;
+  background: #fff8e1;
+  border: 2px dashed #f59e0b;
+  border-radius: 16px;
+  color: #d97706;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+  animation: fadeIn 0.3s ease;
 }
 
-/* --- Nút (sao chép từ Home.vue) --- */
-button {
-  width: 100%;
-  padding: 14px;
-  font-size: 17px;
+.status-text {
   font-weight: 600;
-  border-radius: 10px;
+  font-size: 1.1rem;
+  margin: 0;
+  animation: pulseText 1.5s infinite;
+}
+
+.cancel-btn {
+  background: white;
+  border: 1px solid #d97706;
+  color: #d97706;
+  padding: 8px 24px;
+  border-radius: 20px;
+  font-weight: 600;
   cursor: pointer;
-  transition: 0.2s;
-  border: none;
+  transition: all 0.2s;
 }
-.btn-create {
-  background: #10b981;
+.cancel-btn:hover {
+  background: #d97706;
   color: white;
 }
-.btn-create:hover {
-  background: #059669;
+
+.spinner {
+  width: 30px;
+  height: 30px;
+  border: 3px solid #fcd34d;
+  border-top-color: #d97706;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
 }
-.btn-join {
-  background: #3b82f6;
-  color: white;
-}
-.btn-join:hover {
-  background: #2563eb;
-}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes pulseText { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
 </style>

@@ -1,21 +1,29 @@
 <template>
-  <div class="chat-box">
+  <div class="chat-container">
     <div class="chat-header">
-      <h3>Chat trong phòng</h3>
+      <h3>💬 Trò chuyện</h3>
     </div>
-
-    <div class="messages" ref="messagesContainer">
-      <div v-for="(msg, index) in messages" :key="index" class="message">
-        <strong>{{ msg.senderName }}:</strong> {{ msg.message }}
+    
+    <div class="messages-list" ref="msgList">
+      <div 
+        v-for="(msg, index) in messages" 
+        :key="index" 
+        class="message-item"
+        :class="{ 'system-msg': msg.senderName === 'Hệ thống' }"
+      >
+        <span v-if="msg.senderName !== 'Hệ thống'" class="sender">{{ msg.senderName }}:</span>
+        <span class="content" :class="{ highlight: isImportant(msg.message) }">
+           {{ msg.message }}
+        </span>
       </div>
     </div>
 
-    <div class="input-row">
-      <input
-        v-model="text"
+    <div class="chat-input">
+      <input 
+        v-model="text" 
+        @keyup.enter="send" 
+        placeholder="Nhập tin nhắn..." 
         type="text"
-        placeholder="Nhập tin nhắn..."
-        @keyup.enter="send"
       />
       <button @click="send">Gửi</button>
     </div>
@@ -23,110 +31,119 @@
 </template>
 
 <script setup>
-// Thêm 'watch' và 'nextTick' để tự động cuộn
-import { ref, watch, nextTick } from "vue";
+import { ref, watch, nextTick } from 'vue';
 
-const props = defineProps({
-  messages: {
-    type: Array,
-    default: () => [],
-  },
-});
-
-const emits = defineEmits(["send"]);
-
+const props = defineProps(['messages']);
+const emits = defineEmits(['send']);
 const text = ref("");
-// Tạo một ref để tham chiếu đến div.messages
-const messagesContainer = ref(null);
+const msgList = ref(null);
 
 function send() {
-  if (!text.value.trim()) return;
-  emits("send", text.value.trim());
+  if(!text.value.trim()) return;
+  emits('send', text.value);
   text.value = "";
 }
 
-// === THÊM KHỐI NÀY ===
-// Theo dõi khi có tin nhắn mới
-watch(
-  () => props.messages,
-  async () => {
-    // Đợi DOM cập nhật
-    await nextTick();
-    // Cuộn xuống dưới cùng
-    if (messagesContainer.value) {
-      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
-    }
-  },
-  { deep: true } // Theo dõi sâu vào trong mảng
-);
-// ======================
+function isImportant(msg) {
+  const keywords = ["vay", "thắng", "gây giống", "ăn"];
+  return keywords.some(k => msg.toLowerCase().includes(k));
+}
+
+watch(() => props.messages.length, () => {
+  nextTick(() => {
+    if(msgList.value) msgList.value.scrollTop = msgList.value.scrollHeight;
+  });
+});
 </script>
 
 <style scoped>
-.chat-box {
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 8px;
+.chat-container {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.05);
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  background: #f9fafb;
-  
-  /* === THAY ĐỔI CHÍNH === */
-  /* Xóa 'max-height: 260px' */
-  /* Đặt một chiều cao cố định. 
-     60vh = 60% chiều cao màn hình, bạn có thể đổi thành 500px, 600px, v.v.
-     nếu muốn một giá trị pixel tuyệt đối.
-  */
-  height: 60vh; 
-  min-height: 300px; /* Đảm bảo nó không quá nhỏ trên màn hình hẹp */
+  height: 500px; /* Chiều cao cố định */
+  border: 1px solid #eee;
+  overflow: hidden;
 }
 
-.chat-header h3 {
-  margin: 0;
-  font-size: 15px;
+.chat-header {
+  padding: 15px;
+  background: #fafafa;
+  border-bottom: 1px solid #eee;
 }
+.chat-header h3 { margin: 0; font-size: 1.1rem; color: #444; }
 
-.messages {
-  flex: 1; /* Quan trọng: làm cho nó lấp đầy không gian */
-  min-height: 0; /* Cần thiết cho flexbox co giãn đúng */
-  overflow-y: auto; /* Quan trọng: Chỉ cuộn khu vực này */
-  border-radius: 6px;
-  border: 1px solid #e5e7eb;
-  padding: 4px;
-  background: white;
-  font-size: 14px;
-}
-
-.message + .message {
-  margin-top: 4px;
-}
-
-.input-row {
-  display: flex;
-  gap: 6px;
-  /* Đảm bảo thanh input không bị co lại */
-  flex-shrink: 0;
-}
-
-input {
+.messages-list {
   flex: 1;
-  padding: 6px 8px;
-  border-radius: 8px;
-  border: 1px solid #d1d5db;
-  font-size: 14px;
+  padding: 15px;
+  overflow-y: auto;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
-button {
-  padding: 6px 10px;
-  border-radius: 8px;
+.message-item {
+  font-size: 0.95rem;
+  line-height: 1.4;
+  padding: 8px 12px;
+  background: #f1f5f9;
+  border-radius: 12px;
+  border-bottom-left-radius: 2px;
+  align-self: flex-start;
+  max-width: 90%;
+}
+
+.message-item.system-msg {
+  align-self: center;
+  background: transparent;
+  color: #888;
+  font-size: 0.85rem;
+  font-style: italic;
   border: none;
-  cursor: pointer;
-  background: #10b981;
+  padding: 0;
+  text-align: center;
+}
+
+.message-item .sender {
+  font-weight: 700;
+  color: #3b82f6;
+  margin-right: 5px;
+}
+
+/* Highlight các từ khóa quan trọng trong game */
+.content.highlight {
+  color: #d97706;
+  font-weight: 600;
+}
+
+.chat-input {
+  padding: 10px;
+  border-top: 1px solid #eee;
+  display: flex;
+  gap: 8px;
+  background: #fafafa;
+}
+
+.chat-input input {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 20px;
+  outline: none;
+}
+.chat-input input:focus { border-color: #3b82f6; }
+
+.chat-input button {
+  padding: 8px 16px;
+  background: #3b82f6;
   color: white;
-  font-size: 14px;
+  border: none;
+  border-radius: 20px;
+  cursor: pointer;
+  font-weight: 600;
 }
-button:hover {
-  background: #059669;
-}
+.chat-input button:hover { background: #2563eb; }
 </style>

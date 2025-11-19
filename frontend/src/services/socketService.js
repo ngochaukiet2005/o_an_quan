@@ -1,8 +1,13 @@
-// src/services/socketService.js
 import { io } from "socket.io-client";
 import { ref } from "vue";
 
-const SOCKET_URL = "http://localhost:3000";
+// === TỰ ĐỘNG CẤU HÌNH URL ===
+// 1. import.meta.env.PROD: Nếu đang chạy bản build (npm run build), dùng đường dẫn tương đối "/"
+// 2. window.location.hostname: Tự động lấy "localhost" hoặc IP (ví dụ "192.168.1.15") từ thanh địa chỉ trình duyệt
+const SOCKET_URL = import.meta.env.PROD 
+  ? "/" 
+  : `http://${window.location.hostname}:3000`;
+// ============================
 
 let socket = null;
 const socketId = ref(null);
@@ -14,7 +19,7 @@ function connect() {
     });
 
     socket.on("connect", () => {
-      console.log("🔌 Connected:", socket.id);
+      console.log("🔌 Connected to:", SOCKET_URL, "| ID:", socket.id);
       socketId.value = socket.id;
     });
 
@@ -52,23 +57,21 @@ function leaveRoom() {
   getSocket().emit("leave_room");
 }
 
-// === CÁC HÀM ĐÃ SỬA: Thêm roomId ===
 function requestGameState(roomId) {
-  getSocket().emit("game:request_state", roomId); // Gửi roomId
+  getSocket().emit("game:request_state", roomId);
 }
 
 function makeMove(roomId, payload) {
-  getSocket().emit("make_move", { roomId, ...payload }); // Gửi roomId và payload
+  getSocket().emit("make_move", { roomId, ...payload });
 }
 
 function submitRps(roomId, choice) {
-  getSocket().emit("game:submit_rps", { roomId, choice }); // Gửi roomId và choice
+  getSocket().emit("game:submit_rps", { roomId, choice });
 }
-// ==================================
 
 function sendMessage(roomId, playerName, text) {
   getSocket().emit("chat:send", {
-    roomId, // roomId đã có sẵn
+    roomId,
     message: text,
     senderName: playerName,
   });
@@ -104,6 +107,10 @@ function onNewMessage(cb) {
 function onAnimate(cb) {
   getSocket().on("game:perform_animation", cb);
 }
+function onQueueUpdate(cb) {
+  getSocket().on("queue_update", cb);
+}
+
 function offAll() {
   if (!socket) return;
   socket.off("game_start");
@@ -113,13 +120,11 @@ function offAll() {
   socket.off("room:player-joined");
   socket.off("error");
   socket.off("kicked_to_menu");
-  socket.off("room:joined"); // <-- Quan trọng: Thêm dọn dẹp cho room:joined
-
-  // === THÊM DỌN DẸP MỚI ===
+  socket.off("room:joined");
   socket.off("game:start_rps");
   socket.off("timer:start");
   socket.off("timer:clear");
-  // ======================
+  socket.off("queue_update");
 }
 
 export default {
@@ -142,5 +147,6 @@ export default {
   getSocketIdReactive,
   leaveRoom,
   submitRps,
-  onAnimate, // <-- EXPORT HÀM MỚI
+  onAnimate,
+  onQueueUpdate,
 };

@@ -1,24 +1,38 @@
-@import "./base.css";
+/* frontend/src/assets/main.css */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
 
-#app {
-  font-weight: normal;
+:root {
+  --primary-color: #8d6e63;   /* Màu gỗ chính */
+  --accent-color: #d32f2f;    /* Màu đỏ điểm nhấn */
+  --bg-color: #fdfbf7;        /* Màu nền kem giấy */
+  --board-bg: #eecfa1;        /* Màu nền bàn cờ */
+  --text-main: #3e2723;       /* Màu chữ nâu đậm */
+  --shadow-soft: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --glass-bg: rgba(255, 255, 255, 0.85);
 }
 
-a,
-.green {
-  text-decoration: none;
-  color: hsla(160, 100%, 37%, 1);
-  transition: 0.4s;
-  padding: 3px;
+body {
+  background-color: var(--bg-color);
+  color: var(--text-main);
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-@media (hover: hover) {
-  a:hover {
-    background-color: hsla(160, 100%, 37%, 0.2);
-  }
+button {
+  font-family: inherit;
 }
 
-/*
-  KHỐI @media (min-width: 1024px) ĐÃ BỊ XÓA HOÀN TOÀN
-  VÌ NÓ LÀ NGUYÊN NHÂN GÂY RA LỖI CĂN GIỮA VÀ CÓ LỀ 2 BÊN.
-*/
+/* Hiệu ứng scrollbar đẹp hơn */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f1f1; 
+}
+::-webkit-scrollbar-thumb {
+  background: #bbb; 
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #888; 
+}

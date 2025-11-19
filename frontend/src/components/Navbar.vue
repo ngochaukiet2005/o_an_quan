@@ -1,87 +1,81 @@
 <template>
-  <header class="navbar">
-    <div class="nav-left">
-      <img src="/img/logo.jpg" alt="Logo" class="logo" />
-      <span class="brand">Ô Ăn Quan Online</span>
+  <nav class="navbar">
+    <div class="nav-container">
+      <div class="logo" @click="goHome">
+        <img src="/img/logo.jpg" alt="Logo" />
+        <span>Ô Ăn Quan</span>
+      </div>
+      <div class="nav-links">
+        <router-link v-if="route.path !== '/'" to="/" class="nav-item">Trang chủ</router-link>
+        <router-link to="/about" class="nav-item">Giới thiệu</router-link>
+        <router-link to="/guide" class="nav-item">Hướng dẫn</router-link>
+      </div>
     </div>
-
-    <nav class="nav-menu">
-      <router-link to="/" exact-active-class="active">Trang chủ</router-link>
-      <router-link to="/guide" active-class="active"
-        >Hướng dẫn (Luật chơi)</router-link
-      >
-      <router-link to="/about" active-class="active">Giới thiệu</router-link>
-    </nav>
-
-    <div class="nav-user">
-      <i class="fa-solid fa-user-circle"></i>
-    </div>
-  </header>
+  </nav>
 </template>
+
+<script setup>
+import { useRouter, useRoute } from "vue-router";
+const router = useRouter();
+const route = useRoute();
+
+function goHome() {
+  router.push("/");
+}
+</script>
 
 <style scoped>
 .navbar {
-  width: 100%;
-  height: 70px;
-  background: white;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 24px;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
   position: fixed;
   top: 0;
   left: 0;
-  box-shadow: 0 4px 10px #00000010;
-  z-index: 50;
+  width: 100%;
+  z-index: 1000;
+  height: 70px;
 }
 
-.nav-left {
+.nav-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
+  height: 100%;
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 12px;
 }
 
 .logo {
-  width: 45px;
-}
-
-.brand {
-  font-size: 20px;
-  font-weight: 700;
-}
-
-.nav-menu {
   display: flex;
-  gap: 22px;
-}
-
-.nav-menu router-link {
-  text-decoration: none;
-  font-weight: 500;
-  color: #333;
-  padding-bottom: 4px;
-  border-bottom: 2px solid transparent;
-  transition: 0.25s ease;
-}
-
-.nav-menu router-link:hover {
-  color: #2563eb;
-}
-
-/* Highlight active */
-.active {
-  color: #2563eb;
-  border-bottom: 2px solid #2563eb;
-  font-weight: 600;
-}
-
-.nav-user i {
-  font-size: 26px;
+  align-items: center;
+  gap: 10px;
+  font-weight: 800;
+  font-size: 1.5rem;
+  color: #8d6e63;
   cursor: pointer;
 }
-.nav-menu a,
-.nav-menu router-link,
-.nav-menu .router-link-active {
-  text-decoration: none !important;
+
+.logo img {
+  height: 40px;
+  border-radius: 8px;
+}
+
+.nav-links {
+  display: flex;
+  gap: 20px;
+}
+
+.nav-item {
+  text-decoration: none;
+  color: #555;
+  font-weight: 600;
+  transition: color 0.2s;
+}
+
+.nav-item:hover,
+.router-link-active {
+  color: #d32f2f;
 }
 </style>

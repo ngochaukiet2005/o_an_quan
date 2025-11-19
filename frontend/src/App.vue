@@ -1,5 +1,5 @@
 <template>
-  <Navbar />
+  <Navbar v-if="showNavbar" />
 
   <div class="app-content">
     <router-view v-slot="{ Component }">
@@ -12,6 +12,17 @@
 
 <script setup>
 import Navbar from "./components/Navbar.vue";
+import { computed } from "vue";
+import { useRoute } from "vue-router";
+
+const route = useRoute();
+
+const showNavbar = computed(() => {
+  // Chỉ hiện navbar ở trang chủ '/' và trang sảnh chờ '/play'
+  // Các trang trong game (/room/:id) hoặc trang khác có thể ẩn nếu muốn
+  // Theo yêu cầu: "Hiện ở tab home và play"
+  return ['/', '/play'].includes(route.path);
+});
 </script>
 
 <style>
@@ -21,7 +32,6 @@ html {
   font-family: "Inter", sans-serif;
 }
 
-/* đảm bảo nội dung nằm dưới navbar */
 .app-content {
   padding-top: 70px;
 }

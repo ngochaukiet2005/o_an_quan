@@ -10,81 +10,85 @@
       :handType="handState.handType" 
       :isRotated="handState.useCustomRotation ? handState.customIsRotated : isOpponentTurn"
     />
-    <div class="board" v-if="displayBoard.length === 12" :class="playerViewClass">
-       <div
-            :ref="(el) => cellRefs[0] = el" 
-            :class="['cell', 'quan-cell', 'quan-left', { clickable: false }]"
-            @click="handleClick(0)"
-        >
-            <CellStones 
-            :quanCount="displayBoard[0].quan" 
-            :danCount="displayBoard[0].dan" 
-            :seed="0"
-            />
-            <span class="label">Ô 0 (Quan P2)</span>
-            <div class="stone-counter">
-            <span v-if="displayBoard[0].quan > 0" class="counter-quan">{{ displayBoard[0].quan }}</span>
-            <span v-if="displayBoard[0].dan > 0" class="counter-dan">{{ displayBoard[0].dan }}</span>
-            </div>
-        </div>
+    
+    <div class="board-container" v-if="displayBoard.length === 12">
+      <div class="board" :class="playerViewClass">
+         <div
+              :ref="(el) => cellRefs[0] = el" 
+              :class="['cell', 'quan-cell', 'quan-left', { clickable: false }]"
+              @click="handleClick(0)"
+          >
+              <CellStones 
+              :quanCount="displayBoard[0].quan" 
+              :danCount="displayBoard[0].dan" 
+              :seed="0"
+              />
+              <div class="stone-counter" v-if="displayBoard[0].quan > 0 || displayBoard[0].dan > 0">
+                 {{ displayBoard[0].quan * 5 + displayBoard[0].dan }}
+              </div>
+          </div>
 
-        <div class="board-row cell-row-a">
-            <div
-            v-for="i in 5"
-            :key="11 - i + 1"
-            :ref="(el) => cellRefs[11 - i + 1] = el" 
-            :class="['cell', 'dan-cell', { clickable: isClickable(11 - i + 1) }]"
-            @click="handleClick(11 - i + 1)"
-            >
-            <CellStones 
-                :quanCount="0" 
-                :danCount="displayBoard[11 - i + 1].dan" 
-                :seed="11 - i + 1"
-            />
-            <span class="label">Ô {{ 11 - i + 1 }}</span>
-            <div class="stone-counter">{{ displayBoard[11 - i + 1].dan }}</div>
-            </div>
-        </div>
+          <div class="board-row cell-row-a">
+              <div
+              v-for="i in 5"
+              :key="11 - i + 1"
+              :ref="(el) => cellRefs[11 - i + 1] = el" 
+              :class="['cell', 'dan-cell', { clickable: isClickable(11 - i + 1) }]"
+              @click="handleClick(11 - i + 1)"
+              >
+              <CellStones 
+                  :quanCount="0" 
+                  :danCount="displayBoard[11 - i + 1].dan" 
+                  :seed="11 - i + 1"
+              />
+              <div class="stone-counter" v-if="displayBoard[11 - i + 1].dan > 0">
+                {{ displayBoard[11 - i + 1].dan }}
+              </div>
+              <div class="cell-index">{{ 11 - i + 1 }}</div>
+              </div>
+          </div>
 
-        <div class="board-row cell-row-b">
-            <div
-            v-for="i in 5"
-            :key="i"
-            :ref="(el) => cellRefs[i] = el" 
-            :class="['cell', 'dan-cell', { clickable: isClickable(i) }]"
-            @click="handleClick(i)"
-            >
-            <CellStones 
-                :quanCount="0" 
-                :danCount="displayBoard[i].dan" 
-                :seed="i"
-            />
-            <span class="label">Ô {{ i }}</span>
-            <div class="stone-counter">{{ displayBoard[i].dan }}</div>
-            </div>
-        </div>
+          <div class="board-row cell-row-b">
+              <div
+              v-for="i in 5"
+              :key="i"
+              :ref="(el) => cellRefs[i] = el" 
+              :class="['cell', 'dan-cell', { clickable: isClickable(i) }]"
+              @click="handleClick(i)"
+              >
+              <CellStones 
+                  :quanCount="0" 
+                  :danCount="displayBoard[i].dan" 
+                  :seed="i"
+              />
+              <div class="stone-counter" v-if="displayBoard[i].dan > 0">{{ displayBoard[i].dan }}</div>
+              <div class="cell-index">{{ i }}</div>
+              </div>
+          </div>
 
-        <div
-            :ref="(el) => cellRefs[6] = el" 
-            :class="['cell', 'quan-cell', 'quan-right', { clickable: false }]"
-            @click="handleClick(6)"
-        >
-            <CellStones 
-            :quanCount="displayBoard[6].quan" 
-            :danCount="displayBoard[6].dan" 
-            :seed="6"
-            />
-            <span class="label">Ô 6 (Quan P1)</span>
-            <div class="stone-counter">
-            <span v-if="displayBoard[6].quan > 0" class="counter-quan">{{ displayBoard[6].quan }}</span>
-            <span v-if="displayBoard[6].dan > 0" class="counter-dan">{{ displayBoard[6].dan }}</span>
-            </div>
-        </div>
+          <div
+              :ref="(el) => cellRefs[6] = el" 
+              :class="['cell', 'quan-cell', 'quan-right', { clickable: false }]"
+              @click="handleClick(6)"
+          >
+              <CellStones 
+              :quanCount="displayBoard[6].quan" 
+              :danCount="displayBoard[6].dan" 
+              :seed="6"
+              />
+              <div class="stone-counter" v-if="displayBoard[6].quan > 0 || displayBoard[6].dan > 0">
+                {{ displayBoard[6].quan * 5 + displayBoard[6].dan }}
+              </div>
+          </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
+/* Logic script giữ nguyên 100% như file cũ của bạn 
+  (Chỉ copy lại phần script từ file GameBoard.vue cũ vào đây)
+*/
 import { computed, ref, reactive, watch } from "vue";
 import CellStones from "./CellStones.vue";
 import HandActor from "./HandActor.vue";
@@ -101,20 +105,17 @@ const emits = defineEmits(["move", "score-update"]);
 const gameWrapperRef = ref(null);
 const cellRefs = reactive({});
 
-// === SỬA STATE ===
 const handState = reactive({
   x: 0, 
   y: 0, 
   holdingCount: 0, 
   show: false, 
   duration: 500,
-  handType: 'normal', // Chỉ dùng biến này để điều khiển ảnh
-  // 👇 THÊM 2 DÒNG NÀY 👇
-  useCustomRotation: false, // Cờ để bật chế độ tự chỉnh góc xoay
-  customIsRotated: false,   // Giá trị góc xoay mong muốn (true = xoay 180)
+  handType: 'normal', 
+  useCustomRotation: false, 
+  customIsRotated: false,   
 });
-// 👇 TÍNH TOÁN: Nếu người đang đi (currentTurnId) KHÁC với bản thân mình (playerId) 
-// => Đó là đối thủ đang đi => Cần xoay tay
+
 const isOpponentTurn = computed(() => {
   return props.currentTurnId && props.playerId && (props.currentTurnId !== props.playerId);
 });
@@ -139,15 +140,13 @@ const getCellPos = (index) => {
 
 const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// === LOGIC ANIMATION ĐÃ CHỈNH SỬA ===
 const runMoveAnimation = async (history) => {
   if (!history || history.length === 0) return;
 
   handState.show = true;
   handState.holdingCount = 0;
-  handState.handType = 'normal'; // Reset về tay thường
+  handState.handType = 'normal'; 
 
-  // Di chuyển đến vị trí đầu tiên
   if (history[0]) {
       const startIdx = (history[0].type === 'pickup') ? history[0].index : history[0].start;
       const firstPos = getCellPos(startIdx);
@@ -159,27 +158,18 @@ const runMoveAnimation = async (history) => {
   for (const action of history) {
     const { type, index, count, direction, start, eatenDan, eatenQuan } = action;
 
-    // --- XỬ LÝ: DI CHUYỂN TỚI Ô TRỐNG (Move to Empty) ---
     if (type === 'move_to_empty') {
         const pos = getCellPos(index);
-        handState.duration = 500; // Bay tới
+        handState.duration = 500;
         handState.x = pos.x;
         handState.y = pos.y;
         
-        await wait(500); // Đợi bay tới nơi
-
-        // ĐỔI ICON TAY (Hiệu ứng đập tay/chỉ tay)
+        await wait(500);
         handState.handType = 'slap'; 
-        
-        // Dừng lại lâu hơn một chút để người chơi nhận ra hành động
         await wait(600);
     }
-
-    // --- A. BỐC QUÂN ---
     else if (type === 'pickup') {
-      // Đảm bảo tay về trạng thái thường
       handState.handType = 'normal'; 
-
       const pos = getCellPos(index);
       handState.duration = 500;
       handState.x = pos.x;
@@ -192,11 +182,8 @@ const runMoveAnimation = async (history) => {
       if (displayBoard.value[index]) {
         displayBoard.value[index].dan = 0;
       }
-
       await wait(300); 
     }
-
-    // --- B. RẢI QUÂN ---
     else if (type === 'spread') {
       let currentCell = start;
       let remaining = count;
@@ -217,17 +204,12 @@ const runMoveAnimation = async (history) => {
         if (displayBoard.value[currentCell]) {
           displayBoard.value[currentCell].dan += 1;
         }
-        
         await wait(200);
         currentCell = (currentCell + direction + 12) % 12;
       }
     }
-
-    // --- C. ĂN QUÂN ---
     else if (type === 'capture') {
-      // Chuyển lại tay thường trước khi bay sang ô ăn
       handState.handType = 'normal';
-
       const pos = getCellPos(index);
       handState.duration = 500;
       handState.x = pos.x;
@@ -243,57 +225,37 @@ const runMoveAnimation = async (history) => {
       
       const points = (eatenQuan * 5) + eatenDan;
       emits('score-update', { points });
-      
       await wait(600); 
     }
-    // 👇👇👇 SỬA LẠI ĐOẠN NÀY 👇👇👇
     else if (type === 'final_sweep') {
-        // --- D. THU QUÂN CUỐI VÁN ---
-        
-        // 1. QUAN TRỌNG NHẤT: Bật chế độ tự chỉnh góc xoay
         handState.useCustomRotation = true; 
-
-        // 2. Tính toán: 
-        // - Quân đối thủ (khác số mình) -> Xoay 180 (customIsRotated = true)
-        // - Quân mình (bằng số mình) -> Thẳng đứng (customIsRotated = false)
         if (action.player !== myPlayerNumber.value) {
             handState.customIsRotated = true; 
         } else {
             handState.customIsRotated = false; 
         }
-
         handState.handType = 'normal';
-        
-        // 3. Di chuyển tay đến ô cần thu
         const pos = getCellPos(index);
         handState.duration = 400; 
         handState.x = pos.x;
         handState.y = pos.y;
-        
         await wait(400); 
-        
-        // 4. Hiệu ứng "hút" quân
         if (displayBoard.value[index]) {
             const totalStones = displayBoard.value[index].dan + (displayBoard.value[index].quan || 0);
-            
             displayBoard.value[index].dan = 0;
             displayBoard.value[index].quan = 0;
-            
             handState.holdingCount += totalStones;
         }
-        
         await wait(300); 
     }
-    // 👆👆👆 KẾT THÚC ĐOẠN SỬA 👆👆👆
   }
   handState.show = false;
-  handState.handType = 'normal'; // Reset cuối cùng
+  handState.handType = 'normal'; 
   handState.useCustomRotation = false;
 };
 
 defineExpose({ runMoveAnimation });
 
-// === 4. LOGIC GAMEPLAY (Giữ nguyên) ===
 const myPlayerNumber = computed(() => {
   const me = props.players.find((p) => p.id === props.playerId);
   return me?.symbol === "X" ? 1 : 2;
@@ -322,139 +284,140 @@ function handleClick(index) {
 </script>
 
 <style scoped>
-/* Giữ nguyên toàn bộ style của bạn */
 .game-wrapper {
-  margin-top: 20px;
+  margin-top: 10px;
   text-align: center;
   position: relative; 
 }
 
+/* Container để tạo bóng đổ cho cả bàn */
+.board-container {
+  padding: 20px;
+  display: inline-block;
+  background: #8d6e63; /* Màu gỗ ngoài cùng */
+  border-radius: 50px;
+  box-shadow: 0 20px 30px rgba(0,0,0,0.3), inset 0 0 20px rgba(0,0,0,0.2);
+}
+
 .board {
   display: grid;
-  grid-template-columns: 1fr 5fr 1fr; 
-  grid-template-rows: auto auto; 
-  gap: 10px;
-  max-width: 900px;
-  margin: 20px auto;
-  padding: 15px;
-  background-color: #f0e6d2;
-  border: 5px solid #8d6e63;
-  border-radius: 20px;
+  grid-template-columns: 100px 500px 100px; 
+  grid-template-rows: 100px 100px; 
+  gap: 12px;
+  
+  /* Nền bàn cờ chính */
+  background-color: #eecfa1;
+  border: 2px solid #6d4c41;
+  border-radius: 40px;
+  padding: 10px;
   user-select: none; 
 }
 
 .board-row {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 10px;
+  gap: 8px;
 }
 
+/* STYLE CHUNG CHO Ô */
 .cell {
   position: relative; 
-  padding: 0; 
-  overflow: hidden; 
-  background: white;
-  border-radius: 10px;
-  border: 1px solid #d1d5db;
-  font-size: 16px;
-  min-height: 100px;
+  overflow: hidden;
+  
+  /* Tạo hiệu ứng lõm xuống */
+  background: #d7ccc8; 
+  box-shadow: inset 3px 3px 8px rgba(0,0,0,0.15), inset -3px -3px 8px rgba(255,255,255,0.5);
+  
+  border-radius: 12px;
+  border: 1px solid rgba(0,0,0,0.05);
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: flex-start; 
+  justify-content: center;
   cursor: not-allowed;
   transition: all 0.2s ease;
 }
 
 .cell.clickable {
   cursor: grab;
-  border-color: #10b981;
+  background: #fffde7; /* Màu sáng hơn để mời gọi click */
+  border: 2px solid #8bc34a;
+  box-shadow: 0 5px 10px rgba(0,0,0,0.1); /* Nổi lên */
 }
-/* 👇 Thêm style cho trạng thái đang nhấn chuột (active) */
+
 .cell.clickable:active {
-  cursor: grabbing; /* Bàn tay nắm lại (co vô) */
-  cursor: -webkit-grabbing; /* Hỗ trợ thêm cho một số trình duyệt */
-  
-  /* Tùy chọn: Thêm hiệu ứng lún xuống nhẹ để cảm giác bấm thật hơn */
-  transform: translateY(0) scale(0.98); 
-  background-color: #e6fffa;
+  cursor: grabbing;
+  transform: scale(0.95);
 }
+
 .cell.clickable:hover {
-  background-color: #f7f3e8;
+  background: #ffffff;
   transform: translateY(-2px);
 }
 
-.cell .label {
-  margin-top: 5px;
-  font-size: 0.7rem;
-  font-weight: bold;
-  color: #5d4037;
-  z-index: 200; 
-  opacity: 0.8;
-  pointer-events: none; 
+/* Số hiệu ô (nhỏ, mờ) */
+.cell-index {
+  position: absolute;
+  top: 2px;
+  left: 5px;
+  font-size: 0.6rem;
+  color: #8d6e63;
+  opacity: 0.5;
+  pointer-events: none;
 }
 
+/* Số lượng sỏi */
 .stone-counter {
   position: absolute;
   bottom: 5px;
   right: 5px;
   z-index: 200;
-  background-color: rgba(255, 255, 255, 0.9);
-  border: 1px solid #ccc;
-  border-radius: 50%;
-  min-width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.85rem;
+  background-color: rgba(0, 0, 0, 0.6);
+  color: white;
+  border-radius: 10px;
+  padding: 2px 6px;
+  font-size: 0.8rem;
   font-weight: bold;
-  color: #333;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  pointer-events: none;
 }
 
-.counter-quan { color: #d32f2f; margin-right: 3px; }
-.counter-dan { color: #388e3c; }
-
+/* Ô QUAN */
 .quan-cell {
-  width: 90px; 
-  min-height: 120px;
-  background-color: #fcd34d !important; 
-  border: 4px solid #b45309;
-  justify-content: flex-start; 
-  border-radius: 0; 
+  background: #ffecb3; /* Màu vàng nhạt sang trọng cho Quan */
+  border: 4px solid #8d6e63;
+  box-shadow: inset 0 0 20px rgba(141, 110, 99, 0.3);
 }
 
 .quan-left {
   grid-row: 1 / span 2; 
   grid-column: 1;
-  justify-self: end; 
-  border-radius: 100px 0 0 100px; 
+  border-radius: 60px 12px 12px 60px; 
 }
 
 .quan-right {
   grid-row: 1 / span 2; 
   grid-column: 3;
-  justify-self: start;
-  border-radius: 0 100px 100px 0;
+  border-radius: 12px 60px 60px 12px;
 }
 
 .cell-row-a { grid-row: 1; grid-column: 2; }
 .cell-row-b { grid-row: 2; grid-column: 2; }
 
+/* Xoay bàn cờ cho P2 */
 .p2-view {
   transform: rotate(180deg);
 }
 .p2-view .cell {
   transform: rotate(180deg);
 }
+.p2-view .stone-counter {
+  transform: rotate(0deg); 
+}
+.p2-view .cell-index {
+   transform: rotate(180deg);
+   top: auto; bottom: 2px; left: auto; right: 5px; /* Điều chỉnh vị trí số khi xoay */
+}
 .p2-view .cell.clickable:hover {
   background-color: #f7f3e8;
   transform: rotate(180deg) translateY(-2px); 
 }
-.p2-view .stone-counter {
-  transform: rotate(0deg); 
-}
-.p2-view .quan-left { border-radius: 0 100px 100px 0 !important; }
-.p2-view .quan-right { border-radius: 100px 0 0 100px !important; }
 </style>
