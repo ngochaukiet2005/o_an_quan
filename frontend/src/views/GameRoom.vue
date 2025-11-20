@@ -15,12 +15,13 @@
           <span>⚡ Đấu ngẫu nhiên</span>
         </div>
       </div>
-
+      <div v-if="rpsResult" class="rps-result-container">
+        <div class="rps-result-toast">
+          {{ rpsResult }}
+        </div>
+      </div>
       <div v-if="gamePhase === 'playing'" class="game-layout">
         <div class="main-column">
-          <div v-if="rpsResult" class="rps-result-toast">
-            {{ rpsResult }}
-          </div>
 
           <PlayerInfo
             :players="players"
@@ -195,11 +196,25 @@ function setupSocketListeners() {
   const socket = socketService.getSocket();
 
   const onGameStateHandler = async (data) => {
-    if (data.moveHistory && data.moveHistory.length > 0) {
-      if (gamePhase.value === 'animation' && !animationFinished.value) {
+    if (gamePhase.value === 'animation' && !animationFinished.value) {
+        console.log("⏳ Animation đang chạy, tạm hoãn update game state...");
         pendingGameState.value = data;
         return;
-      }
+    }
+    // 2. 👇👇👇 [SỬA ĐOẠN NÀY] XỬ LÝ F5 REPLAY 👇👇👇
+    // Nếu server gửi bàn cờ cũ (prevBoard) và web đang ở màn hình chờ (loading)
+    if (data.prevBoard && gamePhase.value === 'loading') {
+        console.log("🔄 F5 detected: Khôi phục bàn cờ cũ để chạy lại animation...");
+        
+        // Bắt buộc hiện bàn cờ ngay lập tức
+        board.value = data.prevBoard; 
+        gamePhase.value = 'playing'; 
+        
+        // Đợi Vue vẽ xong bàn cờ ra màn hình rồi mới chạy tiếp
+        await nextTick(); 
+    }
+    // 👆👆👆 --------------------------------------- 👆👆👆
+    if (data.moveHistory && data.moveHistory.length > 0) {
       if (gameBoardRef.value) {
         // Logic diễn hoạt cũ giữ nguyên
         const actingPlayerId = data.startingPlayerId || currentTurnId.value;
@@ -211,8 +226,18 @@ function setupSocketListeners() {
            players.value[pIndex].score = finalTotalScore - earnedPoints;
         }
         isAnimating.value = true;
-        await gameBoardRef.value.runMoveAnimation(data.moveHistory);
+        // 👇👇👇 [CẬP NHẬT] TRUYỀN THAM SỐ elapsedTime 👇👇👇
+        // Nếu server gửi elapsedTime (khi F5), dùng nó. Nếu không (chơi bt), mặc định là 0.
+        const skipTime = data.elapsedTime || 0;
+        console.log(`⏩ Fast-forwarding animation by ${skipTime}ms`);
+        
+        await gameBoardRef.value.runMoveAnimation(data.moveHistory, skipTime);
+        // 👆👆👆 --------------------------------------- 👆👆👆
         isAnimating.value = false;
+        // 👇👇👇 [THÊM DÒNG NÀY] 👇👇👇
+        // Báo cho server biết: "Tôi diễn hoạt xong rồi, hãy bật đồng hồ đi!"
+        socket.emit("game:animation_finished", roomId.value);
+        // 👆👆👆 --------------------- 👆👆👆
         if (pendingTimerData.value) {
             startTimerCountDown(pendingTimerData.value);
             pendingTimerData.value = null;
@@ -361,6 +386,8 @@ function handleRpsAnimationEnd() {
     rpsResultData.value = null;
     // Tự động ẩn thông báo sau 5 giây
     setTimeout(() => { rpsResult.value = null; }, 5000);
+  } else {
+    console.warn("RPS Data is missing!"); // Log nếu không có dữ liệu
   }
   
   // Logic xử lý nếu ván game đã bắt đầu trong lúc đang diễn hoạt Oẳn tù tì
@@ -378,6 +405,12 @@ function handleRpsAnimationEnd() {
     }
     handleStateUpdate(pendingGameState.value);
     pendingGameState.value = null;
+  } else {
+    // 👇👇👇 THÊM ĐOẠN NÀY 👇👇👇
+    // Nếu chưa có dữ liệu bàn cờ, vẫn BẮT BUỘC chuyển sang 'playing'
+    // để component RpsAnimation (z-index 1000) biến mất,
+    // từ đó lộ ra thông báo và màn hình loading của bàn cờ.
+    gamePhase.value = 'playing'; 
   }
 }
 
@@ -787,5 +820,33 @@ watch(roomId, (newId, oldId) => {
   .room-info-pill {
     padding: 6px 12px;
   }
+}
+/* File: frontend/src/views/GameRoom.vue */
+
+.rps-result-container {
+  position: absolute; /* 👈 QUAN TRỌNG: Giúp thông báo nổi lên trên, không đẩy bàn cờ */
+  top: 90px;          /* Điều chỉnh vị trí dọc (ngay dưới Header) */
+  left: 50%;          /* Căn giữa ngang */
+  transform: translateX(-50%); /* Căn chính giữa tâm */
+  
+  width: auto;        /* Để chiều rộng tự co giãn theo nội dung */
+  z-index: 2000 !important; /* Luôn nổi lên trên cùng */
+  pointer-events: none; /* Cho phép bấm xuyên qua thông báo xuống bàn cờ (nếu cần) */
+}
+
+.rps-result-toast {
+  /* Giữ nguyên style cũ */
+  background-color: #e8f5e9; 
+  color: #2e7d32; 
+  padding: 12px 24px;
+  border-radius: 50px; 
+  text-align: center; 
+  font-weight: 700;
+  font-size: 1.1rem;
+  border: 2px solid #a5d6a7; 
+  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+  animation: slideDown 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  min-width: 300px;
+  pointer-events: auto; /* Cho phép copy text nếu cần */
 }
 </style>

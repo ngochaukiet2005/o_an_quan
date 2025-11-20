@@ -140,161 +140,191 @@ const getCellPos = (index) => {
 
 const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-const runMoveAnimation = async (history) => {
+// Trong frontend/src/components/GameBoard.vue
+
+// 👇 Sửa dòng khai báo để nhận thêm tham số skipTime (mặc định là 0)
+const runMoveAnimation = async (history, skipTime = 0) => {
   if (!history || history.length === 0) return;
+
+  // Biến theo dõi thời gian đã trôi qua trong animation
+  let timePassed = 0;
 
   handState.show = true;
   handState.holdingCount = 0;
   handState.handType = 'normal'; 
 
+  // Di chuyển tay đến vị trí đầu tiên
   if (history[0]) {
       let startIdx = 0;
       if (history[0].type === 'pickup') startIdx = history[0].index;
       else if (history[0].type === 'spread') startIdx = history[0].start;
-      else if (history[0].type === 'borrow') startIdx = history[0].indices[0]; // <--- Thêm dòng này
-      // 👆👆👆 ------------------ 👆👆👆
+      else if (history[0].type === 'borrow') startIdx = history[0].indices[0];
+      
       const firstPos = getCellPos(startIdx);
       handState.x = firstPos.x;
       handState.y = firstPos.y;
-      await wait(200);
+      
+      // Chỉ wait nếu chưa bị tua qua
+      if (timePassed >= skipTime) await wait(200);
+      timePassed += 200;
   }
 
   for (const action of history) {
     const { type, index, count, direction, start, eatenDan, eatenQuan } = action;
-    // === 👇👇👇 LOGIC MỚI: DIỄN HOẠT GÂY GIỐNG/VAY DÂN 👇👇👇 ===
-    if (type === 'borrow') {
-        // Ẩn tay để hiện Modal xác nhận trước
-        handState.show = false;
-        
-        // Gọi sự kiện ra ngoài GameRoom để hiện Popup
-        // await để chờ người dùng bấm "Đồng ý" mới chạy tiếp
-        await new Promise((resolve) => {
-            emits('show-borrow-confirm', { 
-                player: action.player, 
-                callback: resolve 
-            });
-        });
 
-        // Sau khi xác nhận: Hiện tay cầm 5 viên
+    // --- LOGIC 1: XỬ LÝ VAY MƯỢN (BORROW) ---
+    if (type === 'borrow') {
+        // Nếu đã qua thời gian này -> Thực hiện ngay lập tức (SKIP)
+        if (timePassed + 2000 < skipTime) { 
+             // (Giả định animation này tốn khoảng 2000ms)
+             // Cập nhật data ngay lập tức mà không hiện tay
+             action.indices.forEach(idx => {
+                 if (displayBoard.value[idx]) displayBoard.value[idx].dan = 1;
+             });
+             timePassed += 2000;
+             continue; // Bỏ qua diễn hoạt
+        }
+
+        handState.show = false;
+        // Nếu đang tua thì không hiện popup confirm nữa (coi như đã đồng ý)
+        if (skipTime === 0) {
+            await new Promise((resolve) => {
+                emits('show-borrow-confirm', { player: action.player, callback: resolve });
+            });
+        }
+
         handState.holdingCount = 5;
         handState.show = true;
-        handState.handType = 'normal';
-
-        // Mẹo: Lúc này data bàn cờ thật đã có sỏi rồi (do server gửi về).
-        // Ta cần tạm ẩn visual sỏi trên 5 ô đó đi để diễn hoạt tay rải ra.
+        
+        // Tạm ẩn sỏi để diễn hoạt
         action.indices.forEach(idx => {
             if (displayBoard.value[idx]) displayBoard.value[idx].dan = 0;
         });
 
-        // Diễn hoạt rải từng viên vào 5 ô
         for (const idx of action.indices) {
             const pos = getCellPos(idx);
-            handState.duration = 400; // Tốc độ bay
             handState.x = pos.x;
             handState.y = pos.y;
             
-            await wait(400); // Chờ tay bay đến
-            
-            // Giả lập rải: giảm trên tay, tăng dưới ô
+            // Logic Skip từng bước nhỏ
+            if (timePassed < skipTime) { 
+                // Skip
+            } else {
+                await wait(400); 
+            }
+            timePassed += 400;
+
             if (handState.holdingCount > 0) handState.holdingCount--;
             if (displayBoard.value[idx]) displayBoard.value[idx].dan = 1;
             
-            await wait(150); // Dừng một chút ở mỗi ô
+            if (timePassed < skipTime) {
+                // Skip
+            } else {
+                await wait(150);
+            }
+            timePassed += 150;
         }
-        await wait(500); // Nghỉ sau khi rải xong
+        if (timePassed >= skipTime) await wait(500);
+        timePassed += 500;
     }
-    // === 👆👆👆 KẾT THÚC LOGIC MỚI 👆👆👆 ===
+
+    // --- LOGIC 2: CÁC LOẠI DI CHUYỂN KHÁC ---
+    // Chúng ta sẽ bọc hàm wait() bằng logic kiểm tra skipTime
+    
+    // Hàm wait thông minh: Nếu chưa đến thời gian skipTime thì không chờ (0ms), ngược lại chờ bình thường
+    const smartWait = async (ms) => {
+        if (timePassed < skipTime) {
+            // Không chờ, nhưng cần nextTick để UI kịp cập nhật nếu cần
+            // (Ở đây ta bỏ qua luôn để chạy nhanh nhất có thể)
+        } else {
+            await wait(ms);
+        }
+        timePassed += ms;
+    };
+
     if (type === 'move_to_empty') {
         const pos = getCellPos(index);
-        handState.duration = 500;
         handState.x = pos.x;
         handState.y = pos.y;
-        
-        await wait(500);
+        await smartWait(500);
         handState.handType = 'slap'; 
-        await wait(600);
+        await smartWait(600);
     }
     else if (type === 'pickup') {
-      handState.handType = 'normal'; 
-      const pos = getCellPos(index);
-      handState.duration = 500;
-      handState.x = pos.x;
-      handState.y = pos.y;
-      
-      await wait(500); 
-      await wait(150); 
-
-      handState.holdingCount += count;
-      if (displayBoard.value[index]) {
-        displayBoard.value[index].dan = 0;
-      }
-      await wait(300); 
-    }
-    else if (type === 'spread') {
-      let currentCell = start;
-      let remaining = count;
-      handState.duration = 450;
-      handState.handType = 'normal';
-
-      while (remaining > 0) {
-        const pos = getCellPos(currentCell);
+        handState.handType = 'normal'; 
+        const pos = getCellPos(index);
         handState.x = pos.x;
         handState.y = pos.y;
         
-        await wait(450); 
-        await wait(200); 
+        await smartWait(500);
+        await smartWait(150);
 
-        if (handState.holdingCount > 0) handState.holdingCount--;
-        remaining--;
+        handState.holdingCount += count;
+        if (displayBoard.value[index]) displayBoard.value[index].dan = 0;
+        await smartWait(300);
+    }
+    else if (type === 'spread') {
+        let currentCell = start;
+        let remaining = count;
+        handState.handType = 'normal';
 
-        if (displayBoard.value[currentCell]) {
-          displayBoard.value[currentCell].dan += 1;
+        while (remaining > 0) {
+            const pos = getCellPos(currentCell);
+            handState.x = pos.x;
+            handState.y = pos.y;
+            
+            await smartWait(450); // Thời gian bay
+            await smartWait(200); // Thời gian thả
+
+            if (handState.holdingCount > 0) handState.holdingCount--;
+            remaining--;
+
+            if (displayBoard.value[currentCell]) {
+                displayBoard.value[currentCell].dan += 1;
+            }
+            await smartWait(200); // Nghỉ
+            currentCell = (currentCell + direction + 12) % 12;
         }
-        await wait(200);
-        currentCell = (currentCell + direction + 12) % 12;
-      }
     }
     else if (type === 'capture') {
-      handState.handType = 'normal';
-      const pos = getCellPos(index);
-      handState.duration = 500;
-      handState.x = pos.x;
-      handState.y = pos.y;
-      
-      await wait(500);
-      await wait(200);
-      
-      if (displayBoard.value[index]) {
-         displayBoard.value[index].dan = 0;
-         displayBoard.value[index].quan = 0;
-      }
-      
-      const points = (eatenQuan * 5) + eatenDan;
-      emits('score-update', { points });
-      await wait(600); 
+        handState.handType = 'normal';
+        const pos = getCellPos(index);
+        handState.x = pos.x;
+        handState.y = pos.y;
+        
+        await smartWait(500);
+        await smartWait(200);
+        
+        if (displayBoard.value[index]) {
+            displayBoard.value[index].dan = 0;
+            displayBoard.value[index].quan = 0;
+        }
+        
+        const points = (eatenQuan * 5) + eatenDan;
+        emits('score-update', { points });
+        await smartWait(600);
     }
     else if (type === 'final_sweep') {
         handState.useCustomRotation = true; 
-        if (action.player !== myPlayerNumber.value) {
-            handState.customIsRotated = true; 
-        } else {
-            handState.customIsRotated = false; 
-        }
+        if (action.player !== myPlayerNumber.value) handState.customIsRotated = true; 
+        else handState.customIsRotated = false; 
+        
         handState.handType = 'normal';
         const pos = getCellPos(index);
-        handState.duration = 400; 
         handState.x = pos.x;
         handState.y = pos.y;
-        await wait(400); 
+        
+        await smartWait(400);
         if (displayBoard.value[index]) {
             const totalStones = displayBoard.value[index].dan + (displayBoard.value[index].quan || 0);
             displayBoard.value[index].dan = 0;
             displayBoard.value[index].quan = 0;
             handState.holdingCount += totalStones;
         }
-        await wait(300); 
+        await smartWait(300);
     }
   }
+  
   handState.show = false;
   handState.handType = 'normal'; 
   handState.useCustomRotation = false;

@@ -16,7 +16,7 @@ let timerManager = null; // Biến quản lý timer
 
 export const handleCreateRoom = (socket, playerName) => {
   const roomId = generateRoomId();
-  const player1 = { id: socket.id, name: playerName, symbol: "X" };
+  const player1 = { id: socket.id, name: playerName, symbol: "X", isDisconnected: false };
   //const game = new OAnQuanGame();
   const game = new GameWithHistory();
   const room = {
@@ -26,6 +26,9 @@ export const handleCreateRoom = (socket, playerName) => {
     status: "waiting",
     rpsGame: null,
     nextTurnPlayerId: null,
+    disconnectTimeout: null,
+    isWaitingForAnimation: false,
+    animationTimeout: null,
   };
   rooms.set(roomId, room);
   socket.join(roomId);
@@ -45,7 +48,7 @@ export const handleJoinRoom = (io, socket, roomId, playerName) => {
     return socket.emit("error", { message: "Phòng đã đầy." });
   }
 
-  const player2 = { id: socket.id, name: playerName, symbol: "O" };
+  const player2 = { id: socket.id, name: playerName, symbol: "O", isDisconnected: false };
   room.players.push(player2);
 
   socket.join(roomId);
@@ -284,6 +287,8 @@ function handleTimerExpires(io, room, expiredPlayer) {
  */
 function performMove(io, room, cellIndex, direction) {
   const game = room.game;
+  // Lưu bàn cờ trước khi đi
+  const preMoveBoard = JSON.parse(JSON.stringify(game.getState().board));
   const newState = game.makeMove(cellIndex, direction);
   const moveHistory = game.getMoveHistory ? game.getMoveHistory() : [];
   if (moveHistory && moveHistory.length > 0) {
@@ -316,6 +321,15 @@ function performMove(io, room, cellIndex, direction) {
   }
 
   const nextPlayer = room.players[newState.currentPlayer - 1];
+  // Đánh dấu là phòng này đang chờ diễn hoạt xong mới đếm giờ
+  room.isWaitingForAnimation = true;
+  // 👇👇👇 [CẬP NHẬT] THÊM startTime VÀO replayData 👇👇👇
+  room.replayData = {
+      prevBoard: preMoveBoard,
+      moveHistory: moveHistory,
+      startTime: Date.now() // Lưu thời điểm bắt đầu nước đi
+  };
+  // 👆👆👆 ---------------------------------------- 👆👆👆
   io.to(room.id).emit("update_game_state", {
     board: newState.board,
     nextTurnPlayerId: nextPlayer.id,
@@ -325,10 +339,32 @@ function performMove(io, room, cellIndex, direction) {
     // <--- THÊM DÒNG NÀY: Gửi kèm kịch bản diễn hoạt
     moveHistory: moveHistory
   });
-
-  timerManager.start(room);
+  if (room.animationTimeout) clearTimeout(room.animationTimeout);
+  room.animationTimeout = setTimeout(() => {
+      if (room.isWaitingForAnimation) {
+          console.log(`⏳ Animation timeout (auto-start) cho phòng ${room.id}`);
+          startTurnTimer(room); 
+      }
+  }, 15000); // 15 giây cho animation là khá dư dả
 }
-
+// 2️⃣ THÊM HÀM HỖ TRỢ startTurnTimer
+function startTurnTimer(room) {
+    room.isWaitingForAnimation = false;
+    if (room.animationTimeout) clearTimeout(room.animationTimeout);
+    timerManager.start(room); // Lúc này mới thực sự bắt đầu đếm 30s
+}
+// 3️⃣ THÊM HÀM XỬ LÝ SỰ KIỆN MỚI
+export const handleAnimationFinished = (io, socket, roomId) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    
+    // Chỉ cần một trong hai người chơi báo xong là bắt đầu (ưu tiên người chơi nhanh hơn)
+    // Hoặc chặt chẽ hơn: Kiểm tra xem socket gửi lên có phải là người chơi trong phòng không
+    if (room.isWaitingForAnimation) {
+        console.log(`🎬 Animation finished in room ${roomId}. Starting timer now.`);
+        startTurnTimer(room);
+    }
+};
 /**
  * (C -> S) Xử lý một nước đi
  */
@@ -382,11 +418,12 @@ export const handleMakeMove = (io, socket, payload) => {
 // --- CÁC HÀM KHÁC ---
 
 export const handleLeaveRoom = (io, socket) => {
-  // Tìm phòng của socket này (cần cho disconnect/leave)
   const room = findRoomBySocketId(socket.id);
   if (!room) return;
   
   timerManager.clear(room);
+  // Xóa timeout reconnect nếu có (vì người chơi chủ động rời đi)
+  if (room.disconnectTimeout) clearTimeout(room.disconnectTimeout);
 
   const otherPlayer = room.players.find((p) => p.id !== socket.id);
   if (otherPlayer) {
@@ -401,7 +438,7 @@ export const handleLeaveRoom = (io, socket) => {
     message: "Bạn đã rời phòng và bị xử thua.",
   });
   rooms.delete(room.id);
-};
+}; // <--- QUAN TRỌNG: Phải có dấu đóng hàm này thì hàm dưới mới chạy được
 
 export const handleDisconnect = (io, socket, reason) => {
   const queueIndex = matchmakingQueue.findIndex((p) => p.id === socket.id);
@@ -411,19 +448,38 @@ export const handleDisconnect = (io, socket, reason) => {
   
   const room = findRoomBySocketId(socket.id);
   if (!room) return;
-  
-  timerManager.clear(room);
-  
-  const otherPlayer = room.players.find((p) => p.id !== socket.id);
-  if (otherPlayer) {
-    const otherSocket = io.sockets.sockets.get(otherPlayer.id);
-    if (otherSocket) {
-      otherSocket.emit("kicked_to_menu", {
-        message: "Đối thủ đã ngắt kết nối. Bạn thắng!",
-      });
-    }
+  // 1. Đánh dấu người chơi offline
+  const player = room.players.find(p => p.id === socket.id);
+  if (player) {
+      player.isDisconnected = true;
   }
-  rooms.delete(room.id);
+  timerManager.clear(room);
+  // 3. Reset timeout cũ nếu có
+  if (room.disconnectTimeout) {
+      clearTimeout(room.disconnectTimeout);
+  }
+  console.log(`⚠️ Socket ${socket.id} mất kết nối. Giữ phòng trong 20s...`);
+  // 4. Thiết lập chờ 20s trước khi thực sự xóa phòng
+  room.disconnectTimeout = setTimeout(() => {
+      if (!rooms.has(room.id)) return;
+
+      // Kiểm tra lại lần cuối xem người chơi còn mất kết nối không
+      const stillDisconnected = room.players.find(p => p.isDisconnected === true);
+      
+      if (stillDisconnected) {
+          console.log(`❌ Timeout reconnect. Hủy phòng ${room.id}`);
+          const otherPlayer = room.players.find(p => !p.isDisconnected);
+          if (otherPlayer) {
+            const otherSocket = io.sockets.sockets.get(otherPlayer.id);
+            if (otherSocket) {
+              otherSocket.emit("kicked_to_menu", {
+                message: "Đối thủ đã ngắt kết nối quá lâu. Bạn thắng!",
+              });
+            }
+          }
+          rooms.delete(room.id);
+      }
+  }, 20000); // 20 giây
 };
 
 export const handleSendMessage = (io, socket, payload) => {
@@ -446,41 +502,49 @@ const findRoomBySocketId = (socketId) => {
   return undefined;
 };
 
-export const handleRequestGameState = (io, socket, roomId) => {
+export const handleRequestGameState = async (io, socket, roomId) => {
   const room = rooms.get(roomId);
   if (!room) {
     return socket.emit("error", { message: "Không tìm thấy phòng." });
   }
 
+  // 1. Client đã quay lại -> Hủy lệnh xóa phòng ngay lập tức
+  if (room.disconnectTimeout) {
+      console.log(`♻️ Client quay lại phòng ${roomId}. Hủy lệnh xóa.`);
+      clearTimeout(room.disconnectTimeout);
+      room.disconnectTimeout = null;
+  }
   // === 💡 SỬA LỖI RECONNECT 💡 ===
   // Cập nhật socket.id mới cho người chơi nếu họ reconnect
   const playerIndex = room.players.findIndex(p => p.id === socket.id);
   if (playerIndex === -1) { 
+    const disconnectedPlayer = room.players.find(p => p.isDisconnected);
+    if (disconnectedPlayer) {
+      console.log(`🔌 Khôi phục kết nối: ${disconnectedPlayer.name} (${disconnectedPlayer.id} -> ${socket.id})`);
+      disconnectedPlayer.id = socket.id; // Cập nhật ID mới
+      disconnectedPlayer.isDisconnected = false; // Đánh dấu online
+    } else {
     // Nếu không tìm thấy, đây là một reconnect
     // Chúng ta cần tìm xem họ là P1 hay P2
     // Giải pháp đơn giản: giả định người chơi đầu tiên không khớp là họ
     // (Điều này có thể không an toàn nếu cả 2 cùng reconnect, nhưng hiếm)
     
     // Thử tìm P1
-    const p1Socket = io.sockets.sockets.get(room.players[0].id);
-    if (!p1Socket) {
-      console.log(`Phát hiện P1 (ID ${room.players[0].id}) reconnect với ID mới ${socket.id}`);
-      room.players[0].id = socket.id;
-    } 
-    // Thử tìm P2 (nếu có P2)
-    else if (room.players.length > 1) {
-      const p2Socket = io.sockets.sockets.get(room.players[1].id);
-      if (!p2Socket) {
-        console.log(`Phát hiện P2 (ID ${room.players[1].id}) reconnect với ID mới ${socket.id}`);
-        room.players[1].id = socket.id;
+      const p1Socket = io.sockets.sockets.get(room.players[0].id);
+      if (!p1Socket && room.players.length > 0) {
+        room.players[0].id = socket.id;
+      } else if (room.players.length > 1) {
+        const p2Socket = io.sockets.sockets.get(room.players[1].id);
+        if (!p2Socket) room.players[1].id = socket.id;
       }
     }
   }
   // Thêm socket này vào phòng của Socket.IO
-  socket.join(roomId);
+  await socket.join(roomId);
   // ==========================
 
   if (room.status === "rps") {
+    socket.emit("game:start_rps", { isRetry: false });
     startRps(io, room, false);
     return;
   }
@@ -513,9 +577,18 @@ export const handleRequestGameState = (io, socket, roomId) => {
       roomId: room.id,
       gameMessage: currentState.gameMessage,
     };
-    
+    // 👇👇👇 [CẬP NHẬT] GỬI KÈM THỜI GIAN ĐÃ TRÔI QUA 👇👇👇
+    if (room.isWaitingForAnimation && room.replayData) {
+        stateData.prevBoard = room.replayData.prevBoard;
+        stateData.moveHistory = room.replayData.moveHistory;
+        // Tính xem animation đã chạy được bao nhiêu mili-giây rồi
+        stateData.elapsedTime = Date.now() - room.replayData.startTime; 
+    }
+    // 👆👆👆 ------------------------------------------ 👆👆👆
     socket.emit("update_game_state", stateData);
-    timerManager.start(room);
+    if (!room.isWaitingForAnimation) {
+      timerManager.start(room);
+    }
   }
 };
 // ===============================
@@ -563,6 +636,12 @@ export function setupSocketHandlers(io) {
     socket.on("leave_room", () => {
       handleLeaveRoom(io, socket);
     });
+
+    // 👇👇👇 THÊM SỰ KIỆN NÀY 👇👇👇
+    socket.on("game:animation_finished", (roomId) => {
+        handleAnimationFinished(io, socket, roomId);
+    });
+    // 👆👆👆 -------------------- 👆👆👆
 
     socket.on("disconnect", (reason) => {
       handleDisconnect(io, socket, reason);
