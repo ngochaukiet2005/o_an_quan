@@ -110,9 +110,15 @@ function handleQuickPlay() {
 function cancelSearch() {
   isSearching.value = false;
   searchStatus.value = "";
-  // Ngắt kết nối tạm thời để hủy hàng chờ
-  socketService.getSocket().disconnect();
-  socketService.connect();
+  
+  const socket = socketService.getSocket();
+  
+  // 1. Ngắt kết nối để Server tự động xóa khỏi hàng chờ (matchmakingQueue)
+  socket.disconnect();
+  
+  // 2. Kết nối lại ngay lập tức (quan trọng)
+  // Sửa lỗi: Gọi trực tiếp socket.connect() thay vì socketService.connect()
+  socket.connect();
 }
 
 function handleCreateRoom() {
@@ -152,10 +158,11 @@ onMounted(() => {
   });
 
   socketService.onRoomJoined((data) => {
+    const mode = isSearching.value ? 'quick' : 'custom';
     router.push({
       name: "GameRoom",
       params: { roomId: data.roomId },
-      query: { playerName: playerName.value, mode: 'custom' },
+      query: { playerName: playerName.value, mode: mode },
     });
   });
 

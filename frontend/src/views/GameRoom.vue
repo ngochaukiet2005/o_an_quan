@@ -1,54 +1,58 @@
 <template>
   <div class="room-page">
-    <div class="room-header">
-      <button class="back-btn" @click="handleLeaveRequest">
-        ← Rời phòng
-      </button>
+    <div class="room-container">
       
-      <div class="room-info-pill" v-if="!isQuickPlay">
-        <span class="label">Phòng:</span>
-        <span class="code">{{ roomId }}</span>
-      </div>
-      <div class="room-info-pill quick-mode" v-else>
-        <span>⚡ Đấu ngẫu nhiên</span>
-      </div>
-    </div>
-
-    <div v-if="gamePhase === 'playing'" class="game-layout">
-      <div class="main-column">
-        <div v-if="rpsResult" class="rps-result-toast">
-          {{ rpsResult }}
+      <div class="room-header">
+        <button class="back-btn" @click="handleLeaveRequest">
+          ← Rời phòng
+        </button>
+        
+        <div class="room-info-pill" v-if="!isQuickPlay">
+          <span class="label">Phòng:</span>
+          <span class="code">{{ roomId }}</span>
         </div>
-
-        <PlayerInfo
-          :players="players"
-          :currentTurnId="currentTurnId"
-          :timerValue="timerValue" 
-          class="player-box"
-        />
-
-        <GameBoard
-          ref="gameBoardRef"
-          v-if="board.length"
-          :board="board"
-          :players="players"
-          :currentTurnId="currentTurnId"
-          :playerId="playerId"
-          @move="handleMove"
-          @score-update="handleLiveScoreUpdate"
-        />
-        <div v-else class="status-card">
-          <div class="loader"></div>
-          <p>Đang đồng bộ bàn cờ...</p>
+        <div class="room-info-pill quick-mode" v-else>
+          <span>⚡ Đấu ngẫu nhiên</span>
         </div>
       </div>
 
-      <div class="side-column">
-        <ChatBox :messages="messages" @send="sendMessage" class="chat-box-styled" />
-      </div>
-    </div>
+      <div v-if="gamePhase === 'playing'" class="game-layout">
+        <div class="main-column">
+          <div v-if="rpsResult" class="rps-result-toast">
+            {{ rpsResult }}
+          </div>
 
-    <div v-if="gamePhase === 'loading' || gamePhase === 'rps'" class="full-screen-loader">
+          <PlayerInfo
+            :players="players"
+            :currentTurnId="currentTurnId"
+            :timerValue="timerValue" 
+            class="player-box"
+          />
+
+          <GameBoard
+            ref="gameBoardRef"
+            v-if="board.length"
+            :board="board"
+            :players="players"
+            :currentTurnId="currentTurnId"
+            :playerId="playerId"
+            @move="handleMove"
+            @score-update="handleLiveScoreUpdate"
+            @show-borrow-confirm="handleShowBorrowConfirm"
+          />
+          <div v-else class="status-card">
+            <div class="loader"></div>
+            <p>Đang đồng bộ bàn cờ...</p>
+          </div>
+        </div>
+
+        <div class="side-column">
+          <ChatBox :messages="messages" @send="sendMessage" class="chat-box-styled" />
+        </div>
+      </div>
+
+    </div>
+    <div v-if="gamePhase === 'loading'" class="full-screen-loader">
       <div class="loader-content">
         
         <div v-if="gamePhase === 'loading'">
@@ -60,6 +64,9 @@
                 <span class="copy-hint">(Chạm để sao chép)</span>
               </div>
               <div class="spinner"></div>
+              <button class="cancel-wait-btn" @click="handleLeaveRequest">
+                Hủy phòng
+              </button>
            </div>
            
            <div v-else>
@@ -94,10 +101,18 @@
       @close="handleNotificationClose"
     />
 
+    <NotificationModal
+      :show="showBorrowModal"
+      :title="borrowTitle"
+      :message="borrowMessage"
+      @close="confirmBorrow"
+    />
+
     <ConfirmModal
       :show="showConfirmLeave"
-      title="Rời phòng đấu?"
-      message="Nếu bạn rời đi ngay bây giờ, bạn sẽ bị xử thua. Bạn có chắc chắn không?"
+      :title="leaveTitle" 
+      :message="leaveMessage"
+      :confirmText="leaveConfirmText"
       @cancel="showConfirmLeave = false"
       @confirm="confirmLeaveRoom"
     />
@@ -123,7 +138,11 @@ import NotificationModal from "../components/NotificationModal.vue";
 import ConfirmModal from "../components/ConfirmModal.vue"; 
 import RpsModal from "../components/RpsModal.vue";
 import RpsAnimation from '@/components/RpsAnimation.vue';
-
+// 👇👇👇 THÊM 2 BIẾN REF NÀY 👇👇👇
+const leaveTitle = ref("Rời phòng đấu?");
+const leaveMessage = ref("Nếu bạn rời đi ngay bây giờ, bạn sẽ bị xử thua. Bạn có chắc chắn không?");
+// 👆👆👆 ---------------------- 👆👆👆
+const leaveConfirmText = ref("Thoát & Chấp nhận thua");
 const route = useRoute();
 const router = useRouter();
 
@@ -161,6 +180,12 @@ const showNotificationModal = ref(false);
 const notificationTitle = ref("");
 const notificationMessage = ref("");
 const notificationAction = ref(null); // callback khi đóng modal
+
+// --- State mới cho Borrow Modal (ĐÃ THÊM LẠI ĐOẠN THIẾU NÀY) ---
+const showBorrowModal = ref(false);
+const borrowTitle = ref("");
+const borrowMessage = ref("");
+const borrowConfirmCallback = ref(null);
 
 // --- State mới cho Confirm ---
 const showConfirmLeave = ref(false);
@@ -250,14 +275,35 @@ function setupSocketListeners() {
 
 function startTimerCountDown(data) {
     clearInterval(timerInterval.value);
-    timerValue.value = data.duration;
-    timerInterval.value = setInterval(() => {
-      if (timerValue.value !== null && timerValue.value > 0) timerValue.value--;
-      else {
-        clearInterval(timerInterval.value);
-        timerValue.value = 0;
-      }
-    }, 1000);
+    
+    // Nếu server bản cũ gửi duration thì fallback (đề phòng)
+    if (!data.deadline) {
+        timerValue.value = data.duration;
+        // Logic đếm ngược cũ (giữ lại để fallback nếu cần hoặc xóa đi)
+        timerInterval.value = setInterval(() => {
+            if (timerValue.value > 0) timerValue.value--;
+            else clearInterval(timerInterval.value);
+        }, 1000);
+        return;
+    }
+    
+    const deadline = data.deadline;
+
+    // Hàm cập nhật thời gian dựa trên thời gian thực
+    const update = () => {
+        const now = Date.now();
+        const remainingMs = deadline - now;
+        
+        if (remainingMs > 0) {
+            timerValue.value = Math.ceil(remainingMs / 1000);
+        } else {
+            timerValue.value = 0;
+            clearInterval(timerInterval.value);
+        }
+    };
+
+    update(); // Gọi ngay lập tức để hiển thị
+    timerInterval.value = setInterval(update, 100); // Check mỗi 100ms để mượt mà
 }
 
 function calculateTurnPoints(history) {
@@ -320,6 +366,38 @@ function handleRpsAnimationEnd() {
   }
 }
 
+// --- HÀM XỬ LÝ VAY DÂN (ĐÃ ĐƯỢC GỌI ĐÚNG) ---
+function handleShowBorrowConfirm({ player, callback }) {
+    // Kiểm tra xem ai là người vay
+    const p1 = players.value.find(p => p.symbol === 'X');
+    const p2 = players.value.find(p => p.symbol === 'O');
+    
+    let actorId = null;
+    if (player === 1) actorId = p1 ? p1.id : null;
+    if (player === 2) actorId = p2 ? p2.id : null;
+
+    const isMe = actorId === playerId.value;
+
+    borrowTitle.value = "Hết quân!";
+    if (isMe) {
+        borrowMessage.value = "Bạn đã hết quân trên 5 ô dân! Hệ thống sẽ tự động lấy 5 điểm (hoặc vay nợ) để rải quân.";
+    } else {
+        borrowMessage.value = "Đối thủ đã hết quân và phải thực hiện gây giống/vay quân.";
+    }
+    
+    // Lưu callback để gọi sau khi bấm OK
+    borrowConfirmCallback.value = callback;
+    showBorrowModal.value = true;
+}
+
+function confirmBorrow() {
+    showBorrowModal.value = false;
+    if (borrowConfirmCallback.value) {
+        borrowConfirmCallback.value(); // Tiếp tục chạy animation rải quân
+        borrowConfirmCallback.value = null;
+    }
+}
+
 function resetState() {
   board.value = [];
   players.value = [];
@@ -336,6 +414,10 @@ function resetState() {
   rpsResult.value = null;
   isAnimating.value = false;
   pendingTimerData.value = null;
+  
+  // Reset các biến borrow (ĐÃ FIX LỖI TẠI ĐÂY VÌ GIỜ BIẾN ĐÃ ĐƯỢC KHAI BÁO)
+  showBorrowModal.value = false;
+  borrowConfirmCallback.value = null;
 }
 
 function handleRpsChoice(choice) {
@@ -411,9 +493,22 @@ function onGameOver(data) {
 }
 
 // --- LOGIC THOÁT PHÒNG MỚI ---
+// 👇 SỬA LẠI HÀM NÀY
 function handleLeaveRequest() {
+    if (gamePhase.value === 'loading') {
+        // Trường hợp ĐANG ĐỢI
+        leaveTitle.value = "Hủy phòng?";
+        leaveMessage.value = "Bạn có chắc chắn muốn hủy phòng và quay lại trang chủ không?";
+        leaveConfirmText.value = "Đồng ý hủy"; // <--- Chữ khi hủy phòng
+    } else {
+        // Trường hợp ĐANG CHƠI
+        leaveTitle.value = "Rời phòng đấu?";
+        leaveMessage.value = "Nếu bạn rời đi ngay bây giờ, bạn sẽ bị xử thua. Bạn có chắc chắn không?";
+        leaveConfirmText.value = "Thoát & Chấp nhận thua"; // <--- Chữ khi thoát game
+    }
     showConfirmLeave.value = true;
 }
+// 👆👆👆 -------------------------------- 👆👆👆
 
 function confirmLeaveRoom() {
     showConfirmLeave.value = false;
@@ -426,11 +521,49 @@ function goToHome() {
   router.push("/");
 }
 
+// 👇👇👇 THAY THẾ HÀM copyRoomId CŨ BẰNG ĐOẠN NÀY 👇👇👇
 function copyRoomId() {
-  navigator.clipboard.writeText(roomId.value);
-  // Thay alert bằng notification đẹp
-  showCustomNotification("Đã sao chép", "Mã phòng đã được lưu vào clipboard.");
+  const textToCopy = roomId.value;
+
+  // Cách 1: Dùng API hiện đại (chỉ chạy trên HTTPS hoặc Localhost)
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(textToCopy)
+      .then(() => showCustomNotification("Đã sao chép", "Mã phòng đã được lưu vào clipboard."))
+      .catch(() => fallbackCopyText(textToCopy)); // Nếu lỗi thì chuyển sang cách 2
+  } else {
+    // Cách 2: Fallback cho mạng LAN (HTTP thường)
+    fallbackCopyText(textToCopy);
+  }
 }
+
+function fallbackCopyText(text) {
+  try {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    
+    // Đặt ở vị trí ẩn để không làm vỡ giao diện
+    textArea.style.position = "fixed";
+    textArea.style.left = "-9999px";
+    textArea.style.top = "0";
+    document.body.appendChild(textArea);
+    
+    textArea.focus();
+    textArea.select();
+    
+    const successful = document.execCommand('copy');
+    document.body.removeChild(textArea);
+    
+    if (successful) {
+      showCustomNotification("Đã sao chép", "Mã phòng đã được lưu vào clipboard.");
+    } else {
+      showCustomNotification("Lỗi", "Trình duyệt chặn quyền sao chép.");
+    }
+  } catch (err) {
+    console.error("Copy error:", err);
+    showCustomNotification("Lỗi", "Không thể sao chép mã phòng.");
+  }
+}
+// 👆👆👆 ------------------------------------------ 👆👆👆
 
 onMounted(() => {
   resetState();
@@ -454,12 +587,32 @@ watch(roomId, (newId, oldId) => {
 </script>
 
 <style scoped>
+/* --- 👇👇👇 STYLE MỚI CHO NỀN FULL SCREEN 👇👇👇 --- */
 .room-page {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 20px;
+  /* Nền full màn hình */
+  min-height: 100vh;
+  width: 100%;
+  background: url("/img/background-gameroom.png") no-repeat center center;
+  background-size: cover;
+  background-attachment: fixed;
+  
+  /* Kỹ thuật bù trừ margin/padding để lấp đầy khoảng trống navbar */
+  margin-top: -70px; /* Kéo lên để che Navbar cũ */
+  padding-top: 90px; /* Đẩy nội dung xuống lại (70px + 20px padding cũ) */
+  
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
   font-family: 'Inter', sans-serif;
+  box-sizing: border-box;
 }
+
+.room-container {
+  width: 100%;
+  max-width: 1200px;
+  padding: 0 20px; /* Padding ngang */
+}
+/* --------------------------------------------------- */
 
 .room-header {
   display: flex;
@@ -469,7 +622,7 @@ watch(roomId, (newId, oldId) => {
 }
 
 .back-btn {
-  background: transparent;
+  background: white;
   color: #666;
   border: 2px solid #ddd;
   padding: 8px 16px;
@@ -506,7 +659,7 @@ watch(roomId, (newId, oldId) => {
 }
 
 .main-column { flex: 3; display: flex; flex-direction: column; gap: 20px; }
-.side-column { flex: 1; min-width: 300px; position: sticky; top: 20px; }
+.side-column { flex: 1; min-width: 300px; position: sticky; top: 90px; }
 
 .rps-result-toast {
   background-color: #e8f5e9; color: #2e7d32; padding: 12px;
@@ -545,4 +698,79 @@ watch(roomId, (newId, oldId) => {
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
 .status-card { background: #fff; padding: 40px; border-radius: 16px; text-align: center; color: #666; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+/* 👇👇👇 THÊM CSS CHO NÚT HỦY 👇👇👇 */
+.cancel-wait-btn {
+  margin-top: 25px;
+  padding: 10px 28px;
+  background-color: white;
+  color: #d32f2f;
+  border: 2px solid #d32f2f;
+  border-radius: 30px;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+}
+
+.cancel-wait-btn:hover {
+  background-color: #d32f2f;
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(211, 47, 47, 0.2);
+}
+
+.cancel-wait-btn:active {
+  transform: scale(0.95);
+}
+/* 👆👆👆 ------------------------ 👆👆👆 */
+/* Responsive cho Tablet và Mobile */
+@media (max-width: 1024px) {
+  .room-page {
+    padding-top: 80px; /* Giảm padding top chút cho đỡ trống */
+    align-items: flex-start;
+    height: auto; /* Cho phép cuộn nếu nội dung dài */
+  }
+
+  .game-layout {
+    flex-direction: column; /* Xếp dọc: Bàn cờ trên, Chat dưới */
+    align-items: center;
+    gap: 20px;
+  }
+
+  .main-column {
+    width: 100%;
+    order: 1; /* Bàn cờ hiện trước */
+  }
+
+  .side-column {
+    width: 100%;
+    min-width: auto;
+    order: 2; /* Chat hiện sau */
+    position: static; /* Bỏ sticky để chat trôi tự nhiên */
+    margin-top: 0;
+  }
+
+  /* Ẩn bớt thông tin không cần thiết nếu muốn, hoặc chỉnh lại font */
+  .room-header {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+}
+
+/* Mobile nhỏ */
+@media (max-width: 600px) {
+  .room-container {
+    padding: 0 10px; /* Giảm lề 2 bên */
+  }
+  
+  .back-btn {
+    padding: 6px 12px;
+    font-size: 0.9rem;
+  }
+
+  .room-info-pill {
+    padding: 6px 12px;
+  }
+}
 </style>

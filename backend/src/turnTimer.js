@@ -23,9 +23,11 @@ export class TurnTimerManager {
 
     const game = room.game;
     const currentPlayer = game.getState().currentPlayer;
-
+    // 👇👇👇 THÊM DÒNG NÀY ĐỂ KHAI BÁO DEADLINE 👇👇👇
+    const deadline = Date.now() + TURN_DURATION;
+    // 👆👆👆 ------------------------------------ 👆👆👆
     // Báo client bắt đầu đếm ngược
-    this.io.to(room.id).emit("timer:start", { duration: TURN_DURATION / 1000 });
+    this.io.to(room.id).emit("timer:start", { deadline: deadline });
 
     const timerId = setTimeout(() => {
       console.log(`Timer hết hạn cho phòng ${room.id}`);

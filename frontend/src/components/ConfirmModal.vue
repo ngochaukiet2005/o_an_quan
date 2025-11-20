@@ -6,7 +6,7 @@
       <p>{{ message }}</p>
       <div class="actions">
         <button class="btn-cancel" @click="$emit('cancel')">Ở lại</button>
-        <button class="btn-confirm" @click="$emit('confirm')">Thoát & Chấp nhận thua</button>
+        <button class="btn-confirm" @click="$emit('confirm')">{{ confirmText }}</button>
       </div>
     </div>
   </div>
@@ -16,7 +16,8 @@
 defineProps({
   show: Boolean,
   title: { type: String, default: "Xác nhận" },
-  message: { type: String, default: "Bạn có chắc chắn muốn thực hiện hành động này?" }
+  message: { type: String, default: "Bạn có chắc chắn muốn thực hiện hành động này?" },
+  confirmText: { type: String, default: "Thoát & Chấp nhận thua" }
 });
 defineEmits(['confirm', 'cancel']);
 </script>

@@ -83,4 +83,31 @@ const counterStyle = computed(() => ({
   width: 16px;
   height: 16px;
 }
+/* 👇👇👇 THÊM VÀO CUỐI 👇👇👇 */
+
+/* Responsive cho bàn tay */
+@media (max-width: 850px) {
+  .hand-img { width: 70px; }
+}
+
+@media (max-width: 650px) {
+  .hand-img { width: 55px; }
+  .holding-stones {
+    top: -30px;
+    left: 10px;
+    padding: 2px 6px;
+    font-size: 0.8rem;
+  }
+  .stone-icon { width: 12px; height: 12px; }
+}
+
+@media (max-width: 480px) {
+  .hand-img { width: 40px; } /* Tay nhỏ xíu cho mobile */
+  .holding-stones {
+    top: -25px;
+    left: 5px;
+    font-size: 0.7rem;
+    border-radius: 8px;
+  }
+}
 </style>

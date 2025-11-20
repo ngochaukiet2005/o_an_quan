@@ -7,7 +7,7 @@
       :class="{ 'active-turn': player.id === currentTurnId }"
     >
       <div class="avatar">
-        {{ player.symbol === 'X' ? '👤' : '🤖' }}
+        {{ player.symbol === 'X' ? '🥷' : '🤖' }}
       </div>
       <div class="info">
         <div class="name">{{ player.name }} <span v-if="player.isMe">(Bạn)</span></div>

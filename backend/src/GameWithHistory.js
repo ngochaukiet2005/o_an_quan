@@ -15,6 +15,32 @@ export class GameWithHistory extends OAnQuanGame {
     this.moveHistory = []; 
     return history;
   }
+  // --- THÊM ĐOẠN NÀY ---
+  // Ghi đè để bắt sự kiện vay dân
+  checkAndHandleBorrowing(player) {
+    // Kiểm tra trạng thái TRƯỚC khi xử lý logic gốc
+    const civilIndices = this.getPlayerCivilianSquares(player);
+    const wasAllEmpty = civilIndices.every((i) => this.state.board[i].dan === 0 && this.state.board[i].quan === 0);
+    
+    // Gọi logic gốc của OAnQuanGame
+    const result = super.checkAndHandleBorrowing(player);
+
+    // Nếu trước đó trống hết, và giờ đã được điền quân (nghĩa là đã vay/gây giống thành công)
+    // và game chưa kết thúc
+    if (wasAllEmpty && !result && !this.state.isGameOver) {
+         // Kiểm tra xem ô đầu tiên có quân chưa để chắc chắn
+         if (this.state.board[civilIndices[0]].dan > 0) {
+             // Đẩy sự kiện vay vào đầu danh sách lịch sử (vì nó xảy ra trước khi đi)
+             this.moveHistory.push({
+                 type: "borrow",
+                 player: player,
+                 indices: civilIndices // [1,2,3,4,5] hoặc [7,8,9,10,11]
+             });
+         }
+    }
+    return result;
+  }
+  // ---------------------
   // THÊM PHƯƠNG THỨC NÀY
   _recordFinalSweep() {
     const s = this.state;

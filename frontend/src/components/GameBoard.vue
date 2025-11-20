@@ -100,7 +100,7 @@ const props = defineProps({
   playerId: { type: String, default: "" },
 });
 
-const emits = defineEmits(["move", "score-update"]);
+const emits = defineEmits(["move", "score-update", "show-borrow-confirm"]);
 
 const gameWrapperRef = ref(null);
 const cellRefs = reactive({});
@@ -148,7 +148,11 @@ const runMoveAnimation = async (history) => {
   handState.handType = 'normal'; 
 
   if (history[0]) {
-      const startIdx = (history[0].type === 'pickup') ? history[0].index : history[0].start;
+      let startIdx = 0;
+      if (history[0].type === 'pickup') startIdx = history[0].index;
+      else if (history[0].type === 'spread') startIdx = history[0].start;
+      else if (history[0].type === 'borrow') startIdx = history[0].indices[0]; // <--- Thêm dòng này
+      // 👆👆👆 ------------------ 👆👆👆
       const firstPos = getCellPos(startIdx);
       handState.x = firstPos.x;
       handState.y = firstPos.y;
@@ -157,7 +161,49 @@ const runMoveAnimation = async (history) => {
 
   for (const action of history) {
     const { type, index, count, direction, start, eatenDan, eatenQuan } = action;
+    // === 👇👇👇 LOGIC MỚI: DIỄN HOẠT GÂY GIỐNG/VAY DÂN 👇👇👇 ===
+    if (type === 'borrow') {
+        // Ẩn tay để hiện Modal xác nhận trước
+        handState.show = false;
+        
+        // Gọi sự kiện ra ngoài GameRoom để hiện Popup
+        // await để chờ người dùng bấm "Đồng ý" mới chạy tiếp
+        await new Promise((resolve) => {
+            emits('show-borrow-confirm', { 
+                player: action.player, 
+                callback: resolve 
+            });
+        });
 
+        // Sau khi xác nhận: Hiện tay cầm 5 viên
+        handState.holdingCount = 5;
+        handState.show = true;
+        handState.handType = 'normal';
+
+        // Mẹo: Lúc này data bàn cờ thật đã có sỏi rồi (do server gửi về).
+        // Ta cần tạm ẩn visual sỏi trên 5 ô đó đi để diễn hoạt tay rải ra.
+        action.indices.forEach(idx => {
+            if (displayBoard.value[idx]) displayBoard.value[idx].dan = 0;
+        });
+
+        // Diễn hoạt rải từng viên vào 5 ô
+        for (const idx of action.indices) {
+            const pos = getCellPos(idx);
+            handState.duration = 400; // Tốc độ bay
+            handState.x = pos.x;
+            handState.y = pos.y;
+            
+            await wait(400); // Chờ tay bay đến
+            
+            // Giả lập rải: giảm trên tay, tăng dưới ô
+            if (handState.holdingCount > 0) handState.holdingCount--;
+            if (displayBoard.value[idx]) displayBoard.value[idx].dan = 1;
+            
+            await wait(150); // Dừng một chút ở mỗi ô
+        }
+        await wait(500); // Nghỉ sau khi rải xong
+    }
+    // === 👆👆👆 KẾT THÚC LOGIC MỚI 👆👆👆 ===
     if (type === 'move_to_empty') {
         const pos = getCellPos(index);
         handState.duration = 500;
@@ -419,5 +465,46 @@ function handleClick(index) {
 .p2-view .cell.clickable:hover {
   background-color: #f7f3e8;
   transform: rotate(180deg) translateY(-2px); 
+}
+/* 👇👇👇 SỬA & THÊM VÀO CUỐI 👇👇👇 */
+
+.game-wrapper {
+  margin-top: 10px;
+  text-align: center;
+  position: relative;
+  /* Đảm bảo wrapper bao trọn để tính toán tọa độ tay chính xác */
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+/* Responsive Scale cho bàn cờ */
+@media (max-width: 850px) {
+  .board-container {
+    transform-origin: top center; /* Thu nhỏ từ trên xuống */
+    transform: scale(0.85); /* Thu nhỏ 85% */
+    margin-bottom: -30px; /* Bù lại khoảng trống do thu nhỏ */
+  }
+}
+
+@media (max-width: 650px) {
+  .board-container {
+    transform: scale(0.65);
+    margin-bottom: -80px;
+  }
+}
+
+@media (max-width: 480px) {
+  .board-container {
+    transform: scale(0.48); /* Thu nhỏ 48% cho điện thoại dọc */
+    margin-bottom: -120px;
+  }
+}
+
+@media (max-width: 380px) {
+  .board-container {
+    transform: scale(0.4);
+    margin-bottom: -140px;
+  }
 }
 </style>
