@@ -236,6 +236,7 @@ const runMoveAnimation = async (history, skipTime = 0) => {
         if (timePassed < skipTime) {
             // Không chờ, nhưng cần nextTick để UI kịp cập nhật nếu cần
             // (Ở đây ta bỏ qua luôn để chạy nhanh nhất có thể)
+            await new Promise(resolve => setTimeout(resolve, 0));
         } else {
             await wait(ms);
         }

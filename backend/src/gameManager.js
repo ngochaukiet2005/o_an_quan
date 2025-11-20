@@ -577,14 +577,6 @@ export const handleRequestGameState = async (io, socket, roomId) => {
       roomId: room.id,
       gameMessage: currentState.gameMessage,
     };
-    // 👇👇👇 [CẬP NHẬT] GỬI KÈM THỜI GIAN ĐÃ TRÔI QUA 👇👇👇
-    if (room.isWaitingForAnimation && room.replayData) {
-        stateData.prevBoard = room.replayData.prevBoard;
-        stateData.moveHistory = room.replayData.moveHistory;
-        // Tính xem animation đã chạy được bao nhiêu mili-giây rồi
-        stateData.elapsedTime = Date.now() - room.replayData.startTime; 
-    }
-    // 👆👆👆 ------------------------------------------ 👆👆👆
     socket.emit("update_game_state", stateData);
     if (!room.isWaitingForAnimation) {
       timerManager.start(room);

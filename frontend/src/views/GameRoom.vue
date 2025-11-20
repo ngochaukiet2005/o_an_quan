@@ -127,7 +127,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, computed, watch } from "vue";
+import { nextTick } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed, watch, nextTick } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import socketService from "../services/socketService";
 
@@ -139,14 +140,11 @@ import NotificationModal from "../components/NotificationModal.vue";
 import ConfirmModal from "../components/ConfirmModal.vue"; 
 import RpsModal from "../components/RpsModal.vue";
 import RpsAnimation from '@/components/RpsAnimation.vue';
-// 👇👇👇 THÊM 2 BIẾN REF NÀY 👇👇👇
-const leaveTitle = ref("Rời phòng đấu?");
-const leaveMessage = ref("Nếu bạn rời đi ngay bây giờ, bạn sẽ bị xử thua. Bạn có chắc chắn không?");
-// 👆👆👆 ---------------------- 👆👆👆
-const leaveConfirmText = ref("Thoát & Chấp nhận thua");
+
 const route = useRoute();
 const router = useRouter();
 
+// --- State cơ bản ---
 const isQuickPlay = computed(() => route.query.mode === 'quick');
 const roomId = computed(() => route.params.roomId);
 const playerName = computed(() => route.query.playerName);
@@ -159,7 +157,7 @@ const currentTurnId = ref(null);
 const messages = ref([]);
 const gamePhase = ref("loading");
 
-// State RPS & Animation
+// --- State RPS & Animation ---
 const rpsRound = ref(0);
 const isRpsRetry = ref(false);
 const rpsResult = ref(null);
@@ -172,25 +170,29 @@ const timerInterval = ref(null);
 const isAnimating = ref(false);
 const pendingTimerData = ref(null);
 
-// State Modals
+// --- State Modals & Popup ---
 const showDirectionModal = ref(false);
 const selectedCellIndex = ref(null);
 
-// --- State mới cho Notification ---
+// Notification Modal
 const showNotificationModal = ref(false);
 const notificationTitle = ref("");
 const notificationMessage = ref("");
-const notificationAction = ref(null); // callback khi đóng modal
+const notificationAction = ref(null);
 
-// --- State mới cho Borrow Modal (ĐÃ THÊM LẠI ĐOẠN THIẾU NÀY) ---
+// Borrow Modal (Vay mượn)
 const showBorrowModal = ref(false);
 const borrowTitle = ref("");
 const borrowMessage = ref("");
 const borrowConfirmCallback = ref(null);
 
-// --- State mới cho Confirm ---
+// Confirm Modal (Rời phòng)
 const showConfirmLeave = ref(false);
+const leaveTitle = ref("Rời phòng đấu?");
+const leaveMessage = ref("Nếu bạn rời đi ngay bây giờ, bạn sẽ bị xử thua. Bạn có chắc chắn không?");
+const leaveConfirmText = ref("Thoát & Chấp nhận thua");
 
+// --- SOCKET LISTENERS ---
 function setupSocketListeners() {
   socketService.offAll();
   const socket = socketService.getSocket();
@@ -201,22 +203,9 @@ function setupSocketListeners() {
         pendingGameState.value = data;
         return;
     }
-    // 2. 👇👇👇 [SỬA ĐOẠN NÀY] XỬ LÝ F5 REPLAY 👇👇👇
-    // Nếu server gửi bàn cờ cũ (prevBoard) và web đang ở màn hình chờ (loading)
-    if (data.prevBoard && gamePhase.value === 'loading') {
-        console.log("🔄 F5 detected: Khôi phục bàn cờ cũ để chạy lại animation...");
-        
-        // Bắt buộc hiện bàn cờ ngay lập tức
-        board.value = data.prevBoard; 
-        gamePhase.value = 'playing'; 
-        
-        // Đợi Vue vẽ xong bàn cờ ra màn hình rồi mới chạy tiếp
-        await nextTick(); 
-    }
-    // 👆👆👆 --------------------------------------- 👆👆👆
     if (data.moveHistory && data.moveHistory.length > 0) {
+      await nextTick();
       if (gameBoardRef.value) {
-        // Logic diễn hoạt cũ giữ nguyên
         const actingPlayerId = data.startingPlayerId || currentTurnId.value;
         const earnedPoints = calculateTurnPoints(data.moveHistory);
         const pIndex = players.value.findIndex(p => p.id === actingPlayerId);
@@ -225,23 +214,26 @@ function setupSocketListeners() {
            const finalTotalScore = finalScoreObj ? (finalScoreObj.quan * 5 + finalScoreObj.dan) : 0;
            players.value[pIndex].score = finalTotalScore - earnedPoints;
         }
-        isAnimating.value = true;
-        // 👇👇👇 [CẬP NHẬT] TRUYỀN THAM SỐ elapsedTime 👇👇👇
-        // Nếu server gửi elapsedTime (khi F5), dùng nó. Nếu không (chơi bt), mặc định là 0.
-        const skipTime = data.elapsedTime || 0;
-        console.log(`⏩ Fast-forwarding animation by ${skipTime}ms`);
-        
-        await gameBoardRef.value.runMoveAnimation(data.moveHistory, skipTime);
-        // 👆👆👆 --------------------------------------- 👆👆👆
-        isAnimating.value = false;
-        // 👇👇👇 [THÊM DÒNG NÀY] 👇👇👇
-        // Báo cho server biết: "Tôi diễn hoạt xong rồi, hãy bật đồng hồ đi!"
-        socket.emit("game:animation_finished", roomId.value);
-        // 👆👆👆 --------------------- 👆👆👆
-        if (pendingTimerData.value) {
-            startTimerCountDown(pendingTimerData.value);
-            pendingTimerData.value = null;
+
+        // 👇👇👇 BỌC TRY/CATCH VÀ SỬA LỖI TYPO/UNDEFINED 👇👇👇
+        try {
+            isAnimating.value = true;
+            console.log(`🎬 Running live animation...`); // Đã sửa 'onsole' thành 'console'
+            
+            // Đã sửa 'skipTime' thành 'false' vì biến skipTime không tồn tại
+            await gameBoardRef.value.runMoveAnimation(data.moveHistory, false); 
+        } catch (error) {
+            console.error("⚠️ Animation error (F5 Replay):", error);
+        } finally {
+            isAnimating.value = false;
+            socket.emit("game:animation_finished", roomId.value);
+            
+            if (pendingTimerData.value) {
+                startTimerCountDown(pendingTimerData.value);
+                pendingTimerData.value = null;
+            }
         }
+        // 👆👆👆 --------------------------------------- 👆👆👆
       }
     }
     handleStateUpdate(data);
@@ -285,13 +277,11 @@ function setupSocketListeners() {
     }
   });
   
-  // --- Thay thế alert mặc định bằng Modal ---
   socket.on("error", (err) => {
       showCustomNotification("Lỗi", err.message);
   });
   
   socket.on("kicked_to_menu", (data) => {
-      // Khi bị đá ra menu (đối thủ thoát hoặc mình thoát)
       showCustomNotification("Kết thúc", data.message, () => {
           router.push("/play");
       });
@@ -301,10 +291,8 @@ function setupSocketListeners() {
 function startTimerCountDown(data) {
     clearInterval(timerInterval.value);
     
-    // Nếu server bản cũ gửi duration thì fallback (đề phòng)
     if (!data.deadline) {
         timerValue.value = data.duration;
-        // Logic đếm ngược cũ (giữ lại để fallback nếu cần hoặc xóa đi)
         timerInterval.value = setInterval(() => {
             if (timerValue.value > 0) timerValue.value--;
             else clearInterval(timerInterval.value);
@@ -313,12 +301,9 @@ function startTimerCountDown(data) {
     }
     
     const deadline = data.deadline;
-
-    // Hàm cập nhật thời gian dựa trên thời gian thực
     const update = () => {
         const now = Date.now();
         const remainingMs = deadline - now;
-        
         if (remainingMs > 0) {
             timerValue.value = Math.ceil(remainingMs / 1000);
         } else {
@@ -326,9 +311,8 @@ function startTimerCountDown(data) {
             clearInterval(timerInterval.value);
         }
     };
-
-    update(); // Gọi ngay lập tức để hiển thị
-    timerInterval.value = setInterval(update, 100); // Check mỗi 100ms để mượt mà
+    update();
+    timerInterval.value = setInterval(update, 100);
 }
 
 function calculateTurnPoints(history) {
@@ -357,6 +341,16 @@ function handleStateUpdate(state) {
     });
   }
   currentTurnId.value = state.nextTurnPlayerId || state.startingPlayerId;
+  // 👇👇👇 THÊM ĐOẠN NÀY ĐỂ ĐỒNG BỘ TIMER KHI F5 👇👇👇
+  // Nếu server gửi kèm thông tin timer trong gameState (ví dụ: state.currentTurnDeadline)
+  if (state.currentTurnDeadline) {
+      startTimerCountDown({ deadline: state.currentTurnDeadline });
+  } 
+  else if (state.remainingTime) {
+      // Hoặc nếu server gửi thời gian còn lại (kiểu cũ)
+      startTimerCountDown({ duration: state.remainingTime });
+  }
+  // 👆👆👆 ----------------------------------------- 👆👆👆
   if (state.gameMessage) {
     messages.value.push({ senderName: "Hệ thống", message: state.gameMessage });
   }
@@ -366,31 +360,22 @@ function handleRpsAnimationEnd() {
   animationFinished.value = true;
   
   if (rpsResultData.value) {
-    // 1. Lấy dữ liệu từ server gửi về (bao gồm cả ID người chơi)
     const { message, player1Choice, player2Choice, player1Id, player2Id } = rpsResultData.value;
-
-    // 2. Tìm object người chơi dựa trên ID
-    // Fallback: Nếu không tìm thấy ID (lỗi mạng/server cũ) thì lấy người thứ nhất và thứ hai trong danh sách
     const p1 = players.value.find((p) => p.id === player1Id) || players.value[0];
     const p2 = players.value.find((p) => p.id === player2Id) || players.value[1];
-
-    // 3. Xác định tên hiển thị (quan trọng: dùng giá trị mặc định để tránh 'undefined')
     const name1 = p1 ? p1.name : "Người chơi 1";
     const name2 = p2 ? p2.name : "Người chơi 2";
 
     const map = { rock: "Búa", paper: "Bao", scissors: "Kéo" };
     
-    // 4. Hiển thị thông báo (SỬA LẠI DÒNG NÀY: Dùng name1, name2 thay vì p1.name)
     rpsResult.value = `${name1} ra ${map[player1Choice]}, ${name2} ra ${map[player2Choice]}. ${message}`;
     
     rpsResultData.value = null;
-    // Tự động ẩn thông báo sau 5 giây
     setTimeout(() => { rpsResult.value = null; }, 5000);
   } else {
-    console.warn("RPS Data is missing!"); // Log nếu không có dữ liệu
+    console.warn("RPS Data is missing!");
   }
   
-  // Logic xử lý nếu ván game đã bắt đầu trong lúc đang diễn hoạt Oẳn tù tì
   if (pendingGameState.value) {
     if (gameBoardRef.value && pendingGameState.value.moveHistory) {
          isAnimating.value = true;
@@ -406,17 +391,11 @@ function handleRpsAnimationEnd() {
     handleStateUpdate(pendingGameState.value);
     pendingGameState.value = null;
   } else {
-    // 👇👇👇 THÊM ĐOẠN NÀY 👇👇👇
-    // Nếu chưa có dữ liệu bàn cờ, vẫn BẮT BUỘC chuyển sang 'playing'
-    // để component RpsAnimation (z-index 1000) biến mất,
-    // từ đó lộ ra thông báo và màn hình loading của bàn cờ.
     gamePhase.value = 'playing'; 
   }
 }
 
-// --- HÀM XỬ LÝ VAY DÂN (ĐÃ ĐƯỢC GỌI ĐÚNG) ---
 function handleShowBorrowConfirm({ player, callback }) {
-    // Kiểm tra xem ai là người vay
     const p1 = players.value.find(p => p.symbol === 'X');
     const p2 = players.value.find(p => p.symbol === 'O');
     
@@ -433,7 +412,6 @@ function handleShowBorrowConfirm({ player, callback }) {
         borrowMessage.value = "Đối thủ đã hết quân và phải thực hiện gây giống/vay quân.";
     }
     
-    // Lưu callback để gọi sau khi bấm OK
     borrowConfirmCallback.value = callback;
     showBorrowModal.value = true;
 }
@@ -441,7 +419,7 @@ function handleShowBorrowConfirm({ player, callback }) {
 function confirmBorrow() {
     showBorrowModal.value = false;
     if (borrowConfirmCallback.value) {
-        borrowConfirmCallback.value(); // Tiếp tục chạy animation rải quân
+        borrowConfirmCallback.value(); 
         borrowConfirmCallback.value = null;
     }
 }
@@ -463,7 +441,6 @@ function resetState() {
   isAnimating.value = false;
   pendingTimerData.value = null;
   
-  // Reset các biến borrow (ĐÃ FIX LỖI TẠI ĐÂY VÌ GIỜ BIẾN ĐÃ ĐƯỢC KHAI BÁO)
   showBorrowModal.value = false;
   borrowConfirmCallback.value = null;
 }
@@ -474,6 +451,15 @@ function handleRpsChoice(choice) {
 
 function handleMove(index) {
   if (currentTurnId.value !== playerId.value) return; 
+  // 2. Kiểm tra Phase (đang chơi mới được đi)
+  if (gamePhase.value !== 'playing') return;
+  // 👇👇👇 THÊM ĐOẠN NÀY: CHẶN NẾU ĐỒNG HỒ CHƯA CHẠY 👇👇👇
+  // Ý nghĩa: Phải đợi Server phát lệnh timer:start (hoặc sync timer) thì mới được đi
+  if (!timerValue.value && timerValue.value !== 0) {
+      showCustomNotification("Đợi chút...", "Đang đồng bộ thời gian từ máy chủ.");
+      return;
+  }
+  // 👆👆👆 ---------------------------------------------- 👆👆👆
   selectedCellIndex.value = index;
   showDirectionModal.value = true;
 }
@@ -494,7 +480,6 @@ function sendMessage(text) {
   socketService.sendMessage(roomId.value, playerName.value, text);
 }
 
-// --- LOGIC NOTIFICATION MỚI ---
 function showCustomNotification(title, message, onClosed = null) {
     notificationTitle.value = title;
     notificationMessage.value = message;
@@ -530,7 +515,6 @@ function onGameOver(data) {
             showFinalModal(data);
         })
         .catch(err => {
-            // SỬA LỖI: Thêm backtick (`) bao quanh chuỗi template
             console.error(`Animation error: ${err}`);
             isAnimating.value = false;
             showFinalModal(data);
@@ -540,28 +524,22 @@ function onGameOver(data) {
   }
 }
 
-// --- LOGIC THOÁT PHÒNG MỚI ---
-// 👇 SỬA LẠI HÀM NÀY
 function handleLeaveRequest() {
     if (gamePhase.value === 'loading') {
-        // Trường hợp ĐANG ĐỢI
         leaveTitle.value = "Hủy phòng?";
         leaveMessage.value = "Bạn có chắc chắn muốn hủy phòng và quay lại trang chủ không?";
-        leaveConfirmText.value = "Đồng ý hủy"; // <--- Chữ khi hủy phòng
+        leaveConfirmText.value = "Đồng ý hủy";
     } else {
-        // Trường hợp ĐANG CHƠI
         leaveTitle.value = "Rời phòng đấu?";
         leaveMessage.value = "Nếu bạn rời đi ngay bây giờ, bạn sẽ bị xử thua. Bạn có chắc chắn không?";
-        leaveConfirmText.value = "Thoát & Chấp nhận thua"; // <--- Chữ khi thoát game
+        leaveConfirmText.value = "Thoát & Chấp nhận thua";
     }
     showConfirmLeave.value = true;
 }
-// 👆👆👆 -------------------------------- 👆👆👆
 
 function confirmLeaveRoom() {
     showConfirmLeave.value = false;
-    // Điều hướng về Play page trước khi ngắt kết nối để tránh lỗi UI
-    socketService.leaveRoom(); // Gọi hàm rời phòng để server xử lý
+    socketService.leaveRoom();
     router.push("/play"); 
 }
 
@@ -569,17 +547,13 @@ function goToHome() {
   router.push("/");
 }
 
-// 👇👇👇 THAY THẾ HÀM copyRoomId CŨ BẰNG ĐOẠN NÀY 👇👇👇
 function copyRoomId() {
   const textToCopy = roomId.value;
-
-  // Cách 1: Dùng API hiện đại (chỉ chạy trên HTTPS hoặc Localhost)
   if (navigator.clipboard && window.isSecureContext) {
     navigator.clipboard.writeText(textToCopy)
       .then(() => showCustomNotification("Đã sao chép", "Mã phòng đã được lưu vào clipboard."))
-      .catch(() => fallbackCopyText(textToCopy)); // Nếu lỗi thì chuyển sang cách 2
+      .catch(() => fallbackCopyText(textToCopy));
   } else {
-    // Cách 2: Fallback cho mạng LAN (HTTP thường)
     fallbackCopyText(textToCopy);
   }
 }
@@ -588,8 +562,6 @@ function fallbackCopyText(text) {
   try {
     const textArea = document.createElement("textarea");
     textArea.value = text;
-    
-    // Đặt ở vị trí ẩn để không làm vỡ giao diện
     textArea.style.position = "fixed";
     textArea.style.left = "-9999px";
     textArea.style.top = "0";
@@ -611,7 +583,6 @@ function fallbackCopyText(text) {
     showCustomNotification("Lỗi", "Không thể sao chép mã phòng.");
   }
 }
-// 👆👆👆 ------------------------------------------ 👆👆👆
 
 onMounted(() => {
   resetState();
