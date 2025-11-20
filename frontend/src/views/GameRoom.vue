@@ -339,16 +339,31 @@ function handleStateUpdate(state) {
 
 function handleRpsAnimationEnd() {
   animationFinished.value = true;
+  
   if (rpsResultData.value) {
-    const { message, player1Choice, player2Choice } = rpsResultData.value;
-    const p1 = players.value.find((p) => p.symbol === "X");
-    const p2 = players.value.find((p) => p.symbol === "O");
+    // 1. Lấy dữ liệu từ server gửi về (bao gồm cả ID người chơi)
+    const { message, player1Choice, player2Choice, player1Id, player2Id } = rpsResultData.value;
+
+    // 2. Tìm object người chơi dựa trên ID
+    // Fallback: Nếu không tìm thấy ID (lỗi mạng/server cũ) thì lấy người thứ nhất và thứ hai trong danh sách
+    const p1 = players.value.find((p) => p.id === player1Id) || players.value[0];
+    const p2 = players.value.find((p) => p.id === player2Id) || players.value[1];
+
+    // 3. Xác định tên hiển thị (quan trọng: dùng giá trị mặc định để tránh 'undefined')
+    const name1 = p1 ? p1.name : "Người chơi 1";
+    const name2 = p2 ? p2.name : "Người chơi 2";
+
     const map = { rock: "Búa", paper: "Bao", scissors: "Kéo" };
     
-    rpsResult.value = `${p1?.name} ra ${map[player1Choice]}, ${p2?.name} ra ${map[player2Choice]}. ${message}`;
+    // 4. Hiển thị thông báo (SỬA LẠI DÒNG NÀY: Dùng name1, name2 thay vì p1.name)
+    rpsResult.value = `${name1} ra ${map[player1Choice]}, ${name2} ra ${map[player2Choice]}. ${message}`;
+    
     rpsResultData.value = null;
+    // Tự động ẩn thông báo sau 5 giây
     setTimeout(() => { rpsResult.value = null; }, 5000);
   }
+  
+  // Logic xử lý nếu ván game đã bắt đầu trong lúc đang diễn hoạt Oẳn tù tì
   if (pendingGameState.value) {
     if (gameBoardRef.value && pendingGameState.value.moveHistory) {
          isAnimating.value = true;
