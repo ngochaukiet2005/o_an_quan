@@ -345,7 +345,7 @@ function performMove(io, room, cellIndex, direction) {
           console.log(`⏳ Animation timeout (auto-start) cho phòng ${room.id}`);
           startTurnTimer(room); 
       }
-  }, 15000); // 15 giây cho animation là khá dư dả
+  }, 300000); // 15 giây cho animation là khá dư dả
 }
 // 2️⃣ THÊM HÀM HỖ TRỢ startTurnTimer
 function startTurnTimer(room) {
@@ -354,15 +354,29 @@ function startTurnTimer(room) {
     timerManager.start(room); // Lúc này mới thực sự bắt đầu đếm 30s
 }
 // 3️⃣ THÊM HÀM XỬ LÝ SỰ KIỆN MỚI
+// backend/src/gameManager.js
+
 export const handleAnimationFinished = (io, socket, roomId) => {
     const room = rooms.get(roomId);
     if (!room) return;
     
-    // Chỉ cần một trong hai người chơi báo xong là bắt đầu (ưu tiên người chơi nhanh hơn)
-    // Hoặc chặt chẽ hơn: Kiểm tra xem socket gửi lên có phải là người chơi trong phòng không
+    // 1. Lấy thông tin người chơi đang nắm lượt (người cần suy nghĩ)
+    const gameState = room.game.getState();
+    const currentPlayerIndex = gameState.currentPlayer; // Trả về 1 hoặc 2
+    const activePlayer = room.players[currentPlayerIndex - 1]; // Lấy player object
+
     if (room.isWaitingForAnimation) {
-        console.log(`🎬 Animation finished in room ${roomId}. Starting timer now.`);
-        startTurnTimer(room);
+        // 2. LOGIC QUAN TRỌNG: 
+        // Chỉ bắt đầu timer nếu socket gửi yêu cầu CHÍNH LÀ người chơi của lượt này.
+        // Điều này đảm bảo người đó đã xem hết animation trên máy họ rồi mới bị tính giờ.
+        if (activePlayer && socket.id === activePlayer.id) {
+            console.log(`🎬 Animation finished for active player (${socket.id}). Starting timer.`);
+            startTurnTimer(room);
+        } else {
+            // Nếu người gửi là đối thủ (người vừa đánh xong) hoặc người xem, server sẽ lờ đi
+            // và chờ tín hiệu từ đúng người chơi, hoặc chờ timeout (15s)
+            console.log(`⏳ Socket ${socket.id} báo xong animation, nhưng đợi Active Player (${activePlayer?.name}) kích hoạt...`);
+        }
     }
 };
 /**
@@ -576,6 +590,7 @@ export const handleRequestGameState = async (io, socket, roomId) => {
       debt: currentState.debt,
       roomId: room.id,
       gameMessage: currentState.gameMessage,
+      isWaitingForAnimation: room.isWaitingForAnimation || false,
     };
     socket.emit("update_game_state", stateData);
     if (!room.isWaitingForAnimation) {

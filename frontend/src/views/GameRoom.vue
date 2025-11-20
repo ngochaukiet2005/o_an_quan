@@ -35,7 +35,7 @@
             v-if="board.length"
             :board="board"
             :players="players"
-            :currentTurnId="currentTurnId"
+            :currentTurnId="canInteract ? currentTurnId : null"
             :playerId="playerId"
             @move="handleMove"
             @score-update="handleLiveScoreUpdate"
@@ -127,7 +127,7 @@
 </template>
 
 <script setup>
-import { nextTick } from 'vue';
+// ✅ Code sửa lại (Gộp chung vào 1 dòng)
 import { ref, onMounted, onBeforeUnmount, computed, watch, nextTick } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import socketService from "../services/socketService";
@@ -191,7 +191,10 @@ const showConfirmLeave = ref(false);
 const leaveTitle = ref("Rời phòng đấu?");
 const leaveMessage = ref("Nếu bạn rời đi ngay bây giờ, bạn sẽ bị xử thua. Bạn có chắc chắn không?");
 const leaveConfirmText = ref("Thoát & Chấp nhận thua");
-
+const isServerWaiting = ref(false);
+const canInteract = computed(() => {
+  return timerValue.value !== null && !isServerWaiting.value;
+});
 // --- SOCKET LISTENERS ---
 function setupSocketListeners() {
   socketService.offAll();
@@ -242,6 +245,7 @@ function setupSocketListeners() {
   socket.on("game_start", onGameStateHandler);
   socket.on("update_game_state", onGameStateHandler);
   socket.on("timer:start", (data) => {
+    isServerWaiting.value = false;
     if (isAnimating.value) pendingTimerData.value = data; 
     else startTimerCountDown(data); 
   });
@@ -331,6 +335,11 @@ function handleLiveScoreUpdate({ points }) {
 function handleStateUpdate(state) {
   gamePhase.value = "playing";
   if (state.board) board.value = state.board;
+  // 👇👇👇 [THÊM ĐOẠN NÀY] Cập nhật trạng thái chờ từ server 👇👇👇
+  if (typeof state.isWaitingForAnimation !== 'undefined') {
+      isServerWaiting.value = state.isWaitingForAnimation;
+  }
+  // 👆👆👆 --------------------------------------------------- 👆👆👆
   if (state.players && state.scores) {
     players.value = state.players.map((p) => {
       const scoreData = p.symbol === "X" ? state.scores.player1 : state.scores.player2;
@@ -440,9 +449,9 @@ function resetState() {
   rpsResult.value = null;
   isAnimating.value = false;
   pendingTimerData.value = null;
-  
   showBorrowModal.value = false;
   borrowConfirmCallback.value = null;
+  isServerWaiting.value = false;
 }
 
 function handleRpsChoice(choice) {
@@ -792,7 +801,6 @@ watch(roomId, (newId, oldId) => {
     padding: 6px 12px;
   }
 }
-/* File: frontend/src/views/GameRoom.vue */
 
 .rps-result-container {
   position: absolute; /* 👈 QUAN TRỌNG: Giúp thông báo nổi lên trên, không đẩy bàn cờ */
