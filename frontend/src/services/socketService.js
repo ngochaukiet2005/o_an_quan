@@ -111,20 +111,20 @@ function onQueueUpdate(cb) {
   getSocket().on("queue_update", cb);
 }
 
-// 👇 Đổi tên hàm này từ offAll -> cleanupGameEvents
-function cleanupGameEvents() {
+function offAll() {
   if (!socket) return;
-  // Chỉ xóa các sự kiện cụ thể của màn chơi
-  const gameEvents = [
-    "game_start", "update_game_state", "game_over", 
-    "chat:receive", "room:player-joined", "room:joined",
-    "game:start_rps", "rpsResult", 
-    "timer:start", "timer:clear", "queue_update",
-    "kicked_to_menu", "invalid_move"
-    // Lưu ý: KHÔNG xóa "error" hoặc "connect/disconnect" nếu App.vue dùng chung
-  ];
-  
-  gameEvents.forEach(event => socket.off(event));
+  socket.off("game_start");
+  socket.off("update_game_state");
+  socket.off("game_over");
+  socket.off("chat:receive");
+  socket.off("room:player-joined");
+  socket.off("error");
+  socket.off("kicked_to_menu");
+  socket.off("room:joined");
+  socket.off("game:start_rps");
+  socket.off("timer:start");
+  socket.off("timer:clear");
+  socket.off("queue_update");
 }
 
 export default {
@@ -142,7 +142,7 @@ export default {
   onPlayerJoined,
   onError,
   onGameStart,
-  cleanupGameEvents,
+  offAll,
   getSocket,
   getSocketIdReactive,
   leaveRoom,

@@ -365,19 +365,31 @@ export const handleAnimationFinished = (io, socket, roomId) => {
     const currentPlayerIndex = gameState.currentPlayer; // Trả về 1 hoặc 2
     const activePlayer = room.players[currentPlayerIndex - 1]; // Lấy player object
 
-    if (room.isWaitingForAnimation) {
-        // 2. LOGIC QUAN TRỌNG: 
-        // Chỉ bắt đầu timer nếu socket gửi yêu cầu CHÍNH LÀ người chơi của lượt này.
-        // Điều này đảm bảo người đó đã xem hết animation trên máy họ rồi mới bị tính giờ.
-        if (activePlayer && socket.id === activePlayer.id) {
-            console.log(`🎬 Animation finished for active player (${socket.id}). Starting timer.`);
-            startTurnTimer(room);
-        } else {
-            // Nếu người gửi là đối thủ (người vừa đánh xong) hoặc người xem, server sẽ lờ đi
-            // và chờ tín hiệu từ đúng người chơi, hoặc chờ timeout (15s)
-            console.log(`⏳ Socket ${socket.id} báo xong animation, nhưng đợi Active Player (${activePlayer?.name}) kích hoạt...`);
-        }
-    }
+    if (room.isWaitingForAnimation && activePlayer) {
+        // Kiểm tra Socket.IO xem socket cũ của người chơi này còn sống không
+      const oldSocket = io.sockets.sockets.get(activePlayer.id);
+
+      // CHẤP NHẬN BẮT ĐẦU LƯỢT NẾU:
+      // 1. ID khớp hoàn toàn (trường hợp bình thường)
+      const isIdMatch = socket.id === activePlayer.id;
+      
+      // 2. HOẶC Socket cũ đã chết/không tìm thấy, và có một Socket mới đang ở trong phòng gửi tín hiệu
+      // (Đây chính là trường hợp F5 nhanh quá Server chưa kịp cập nhật ID)
+      const isZombieCase = !oldSocket; 
+
+      if (isIdMatch || isZombieCase) {
+          if (isZombieCase) {
+              console.log(`♻️ [Fix F5] Phát hiện kết nối lại từ ${activePlayer.name}. Cập nhật ID: ${activePlayer.id} -> ${socket.id}`);
+              activePlayer.id = socket.id; // Cập nhật lại ID mới ngay lập tức
+              activePlayer.isDisconnected = false;
+          }
+          
+          console.log(`🎬 Animation finished. Bắt đầu timer cho ${activePlayer.name}.`);
+          startTurnTimer(room);
+      } else {
+          console.log(`⏳ Socket ${socket.id} báo xong, nhưng active player là ${activePlayer.id} (vẫn đang kết nối). Bỏ qua.`);
+      }
+  }
 };
 /**
  * (C -> S) Xử lý một nước đi
@@ -580,7 +592,16 @@ export const handleRequestGameState = async (io, socket, roomId) => {
   if (room.status === "playing") {
     const currentState = room.game.getState();
     const currentPlayerSocket = room.players[currentState.currentPlayer - 1];
+    // 👇👇👇 [SỬA ĐOẠN NÀY: Logic gửi dữ liệu Replay] 👇👇👇
+    let boardToSend = currentState.board;
+    let historyToSend = [];
 
+    // Nếu đang chờ animation, gửi bàn cờ CŨ để Client diễn hoạt lại từ đầu
+    if (room.isWaitingForAnimation && room.replayData) {
+         boardToSend = room.replayData.prevBoard;
+         historyToSend = room.replayData.moveHistory;
+    }
+    // 👆👆👆 ------------------------------------------- 👆👆👆
     const stateData = {
       players: room.players,
       startingPlayerId: room.nextTurnPlayerId,

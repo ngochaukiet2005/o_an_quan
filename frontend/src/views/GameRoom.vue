@@ -15,11 +15,13 @@
           <span>⚡ Đấu ngẫu nhiên</span>
         </div>
       </div>
+
       <div v-if="rpsResult" class="rps-result-container">
         <div class="rps-result-toast">
           {{ rpsResult }}
         </div>
       </div>
+
       <div v-if="gamePhase === 'playing'" class="game-layout">
         <div class="main-column">
 
@@ -47,12 +49,28 @@
           </div>
         </div>
 
-        <div class="side-column">
+        <div class="side-column desktop-chat">
           <ChatBox :messages="messages" @send="sendMessage" class="chat-box-styled" />
         </div>
       </div>
 
     </div>
+
+    <button v-if="gamePhase === 'playing'" class="mobile-chat-btn" @click="showMobileChat = true">
+      💬
+      <span v-if="hasUnreadMessages" class="unread-badge">!</span>
+    </button>
+
+    <div v-if="showMobileChat" class="mobile-chat-overlay" @click.self="showMobileChat = false">
+      <div class="mobile-chat-content">
+        <div class="mobile-chat-header">
+          <h3>Trò chuyện</h3>
+          <button @click="showMobileChat = false">✕</button>
+        </div>
+        <ChatBox :messages="messages" @send="sendMessage" class="chat-box-styled mobile-style" />
+      </div>
+    </div>
+
     <div v-if="gamePhase === 'loading'" class="full-screen-loader">
       <div class="loader-content">
         
@@ -127,7 +145,6 @@
 </template>
 
 <script setup>
-// ✅ Code sửa lại (Gộp chung vào 1 dòng)
 import { ref, onMounted, onBeforeUnmount, computed, watch, nextTick } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import socketService from "../services/socketService";
@@ -156,6 +173,10 @@ const board = ref([]);
 const currentTurnId = ref(null);
 const messages = ref([]);
 const gamePhase = ref("loading");
+
+// --- State Chat Mobile (Mới) ---
+const showMobileChat = ref(false);
+const hasUnreadMessages = ref(false);
 
 // --- State RPS & Animation ---
 const rpsRound = ref(0);
@@ -192,13 +213,17 @@ const leaveTitle = ref("Rời phòng đấu?");
 const leaveMessage = ref("Nếu bạn rời đi ngay bây giờ, bạn sẽ bị xử thua. Bạn có chắc chắn không?");
 const leaveConfirmText = ref("Thoát & Chấp nhận thua");
 const isServerWaiting = ref(false);
+
 const canInteract = computed(() => {
-  return timerValue.value !== null && !isServerWaiting.value;
+  return timerValue.value !== null && !isServerWaiting.value && !isAnimating.value;
 });
+
 // --- SOCKET LISTENERS ---
 function setupSocketListeners() {
-  socketService.offAll();
+  socketService.offAll(); // Dùng offAll để an toàn với file socketService hiện tại của bạn
   const socket = socketService.getSocket();
+
+  // Tìm đoạn này trong setupSocketListeners và thay thế:
 
   const onGameStateHandler = async (data) => {
     if (gamePhase.value === 'animation' && !animationFinished.value) {
@@ -206,9 +231,25 @@ function setupSocketListeners() {
         pendingGameState.value = data;
         return;
     }
+    // Kiểm tra xem có lịch sử diễn hoạt không
+    const hasAnimationData = data.moveHistory && data.moveHistory.length > 0;
+
+    // 👇👇👇 [QUAN TRỌNG] Bật cờ đang diễn hoạt NGAY LẬP TỨC 👇👇👇
+    if (hasAnimationData) {
+        isAnimating.value = true; 
+    }
+    // 👆👆👆 ------------------------------------------------- 👆👆👆
+    // 1. Fix hiển thị khi F5 (Đã có)
+    if (board.value.length === 0) {
+        handleStateUpdate(data); 
+        await nextTick(); 
+    }
+    
+    // 2. Xử lý Animation
     if (data.moveHistory && data.moveHistory.length > 0) {
       await nextTick();
       if (gameBoardRef.value) {
+        // ... (Đoạn logic tính điểm và chạy animation giữ nguyên) ...
         const actingPlayerId = data.startingPlayerId || currentTurnId.value;
         const earnedPoints = calculateTurnPoints(data.moveHistory);
         const pIndex = players.value.findIndex(p => p.id === actingPlayerId);
@@ -218,34 +259,44 @@ function setupSocketListeners() {
            players.value[pIndex].score = finalTotalScore - earnedPoints;
         }
 
-        // 👇👇👇 BỌC TRY/CATCH VÀ SỬA LỖI TYPO/UNDEFINED 👇👇👇
         try {
             isAnimating.value = true;
-            console.log(`🎬 Running live animation...`); // Đã sửa 'onsole' thành 'console'
-            
-            // Đã sửa 'skipTime' thành 'false' vì biến skipTime không tồn tại
+            console.log(`🎬 Running live animation...`);
             await gameBoardRef.value.runMoveAnimation(data.moveHistory, false); 
         } catch (error) {
             console.error("⚠️ Animation error (F5 Replay):", error);
         } finally {
-            isAnimating.value = false;
             socket.emit("game:animation_finished", roomId.value);
+            isAnimating.value = false;
             
             if (pendingTimerData.value) {
-                startTimerCountDown(pendingTimerData.value);
-                pendingTimerData.value = null;
-            }
+                 // ... (logic timer) ...
+                if (typeof startTimer === 'function') 
+                  startTimer(pendingTimerData.value);
+                } else {
+                  startTimerCountDown(pendingTimerData.value);
+                }
+                  pendingTimerData.value = null;
         }
-        // 👆👆👆 --------------------------------------- 👆👆👆
       }
+    } else {
+      // 👇👇👇 [BẮT BUỘC PHẢI CÓ ĐOẠN NÀY] 👇👇👇
+      // Nếu Server đang chờ (isWaitingForAnimation = true) mà không có gì để diễn hoạt
+      // thì Client PHẢI báo xong ngay lập tức để Server mở khóa timer.
+      if (data.isWaitingForAnimation) {
+          console.log("⚠️ Server đang chờ nhưng không có animation. Báo xong ngay!");
+          socket.emit("game:animation_finished", roomId.value);
+      }
+      // 👆👆👆 ---------------------------------- 👆👆👆
     }
+    
     handleStateUpdate(data);
   };
 
   socket.on("game_start", onGameStateHandler);
   socket.on("update_game_state", onGameStateHandler);
   socket.on("timer:start", (data) => {
-    isServerWaiting.value = false;
+    isServerWaiting.value = false; // Mở khóa bàn cờ
     if (isAnimating.value) pendingTimerData.value = data; 
     else startTimerCountDown(data); 
   });
@@ -271,7 +322,15 @@ function setupSocketListeners() {
     gamePhase.value = 'animation'; 
   });
   socket.on("game_over", onGameOver);
-  socket.on("chat:receive", (msg) => messages.value.push(msg));
+
+  // 👇 Cập nhật Logic Chat: Hiện thông báo đỏ nếu đang đóng chat mobile
+  socket.on("chat:receive", (msg) => {
+    messages.value.push(msg);
+    if (!showMobileChat.value) {
+      hasUnreadMessages.value = true;
+    }
+  });
+
   socket.on("room:player-joined", (data) => {
     messages.value.push({ senderName: "Hệ thống", message: `${data.name} đã vào phòng.` });
   });
@@ -335,11 +394,11 @@ function handleLiveScoreUpdate({ points }) {
 function handleStateUpdate(state) {
   gamePhase.value = "playing";
   if (state.board) board.value = state.board;
-  // 👇👇👇 [THÊM ĐOẠN NÀY] Cập nhật trạng thái chờ từ server 👇👇👇
+  
   if (typeof state.isWaitingForAnimation !== 'undefined') {
       isServerWaiting.value = state.isWaitingForAnimation;
   }
-  // 👆👆👆 --------------------------------------------------- 👆👆👆
+  
   if (state.players && state.scores) {
     players.value = state.players.map((p) => {
       const scoreData = p.symbol === "X" ? state.scores.player1 : state.scores.player2;
@@ -350,16 +409,31 @@ function handleStateUpdate(state) {
     });
   }
   currentTurnId.value = state.nextTurnPlayerId || state.startingPlayerId;
-  // 👇👇👇 THÊM ĐOẠN NÀY ĐỂ ĐỒNG BỘ TIMER KHI F5 👇👇👇
-  // Nếu server gửi kèm thông tin timer trong gameState (ví dụ: state.currentTurnDeadline)
+  // 👇👇👇 [SỬA ĐOẠN NÀY: Logic chặn Timer] 👇👇👇
+  let timerData = null;
+  if (state.currentTurnDeadline) {
+      timerData = { deadline: state.currentTurnDeadline };
+  } else if (state.remainingTime) {
+      timerData = { duration: state.remainingTime };
+  }
+
+  if (timerData) {
+      // Nếu đang diễn hoạt thì ĐỪNG chạy timer ngay, hãy lưu lại
+      if (isAnimating.value) {
+          pendingTimerData.value = timerData;
+      } else {
+          // Nếu không diễn hoạt thì chạy luôn
+          startTimer(timerData);
+      }
+  }
+  // 👆👆👆 ------------------------------------ 👆👆👆
   if (state.currentTurnDeadline) {
       startTimerCountDown({ deadline: state.currentTurnDeadline });
   } 
   else if (state.remainingTime) {
-      // Hoặc nếu server gửi thời gian còn lại (kiểu cũ)
       startTimerCountDown({ duration: state.remainingTime });
   }
-  // 👆👆👆 ----------------------------------------- 👆👆👆
+  
   if (state.gameMessage) {
     messages.value.push({ senderName: "Hệ thống", message: state.gameMessage });
   }
@@ -452,6 +526,10 @@ function resetState() {
   showBorrowModal.value = false;
   borrowConfirmCallback.value = null;
   isServerWaiting.value = false;
+  
+  // Reset chat mobile state
+  showMobileChat.value = false;
+  hasUnreadMessages.value = false;
 }
 
 function handleRpsChoice(choice) {
@@ -460,15 +538,12 @@ function handleRpsChoice(choice) {
 
 function handleMove(index) {
   if (currentTurnId.value !== playerId.value) return; 
-  // 2. Kiểm tra Phase (đang chơi mới được đi)
   if (gamePhase.value !== 'playing') return;
-  // 👇👇👇 THÊM ĐOẠN NÀY: CHẶN NẾU ĐỒNG HỒ CHƯA CHẠY 👇👇👇
-  // Ý nghĩa: Phải đợi Server phát lệnh timer:start (hoặc sync timer) thì mới được đi
+
   if (!timerValue.value && timerValue.value !== 0) {
       showCustomNotification("Đợi chút...", "Đang đồng bộ thời gian từ máy chủ.");
       return;
   }
-  // 👆👆👆 ---------------------------------------------- 👆👆👆
   selectedCellIndex.value = index;
   showDirectionModal.value = true;
 }
@@ -593,6 +668,11 @@ function fallbackCopyText(text) {
   }
 }
 
+// Watcher: Tắt thông báo tin nhắn mới khi mở chat mobile
+watch(showMobileChat, (val) => {
+  if (val) hasUnreadMessages.value = false;
+});
+
 onMounted(() => {
   resetState();
   setupSocketListeners();
@@ -615,19 +695,15 @@ watch(roomId, (newId, oldId) => {
 </script>
 
 <style scoped>
-/* --- 👇👇👇 STYLE MỚI CHO NỀN FULL SCREEN 👇👇👇 --- */
+/* --- STYLE NỀN FULL SCREEN --- */
 .room-page {
-  /* Nền full màn hình */
   min-height: 100vh;
   width: 100%;
   background: url("/img/background-gameroom.png") no-repeat center center;
   background-size: cover;
   background-attachment: fixed;
-  
-  /* Kỹ thuật bù trừ margin/padding để lấp đầy khoảng trống navbar */
-  margin-top: -70px; /* Kéo lên để che Navbar cũ */
-  padding-top: 90px; /* Đẩy nội dung xuống lại (70px + 20px padding cũ) */
-  
+  margin-top: -70px;
+  padding-top: 90px;
   display: flex;
   justify-content: center;
   align-items: flex-start;
@@ -638,9 +714,8 @@ watch(roomId, (newId, oldId) => {
 .room-container {
   width: 100%;
   max-width: 1200px;
-  padding: 0 20px; /* Padding ngang */
+  padding: 0 20px;
 }
-/* --------------------------------------------------- */
 
 .room-header {
   display: flex;
@@ -689,15 +764,68 @@ watch(roomId, (newId, oldId) => {
 .main-column { flex: 3; display: flex; flex-direction: column; gap: 20px; }
 .side-column { flex: 1; min-width: 300px; position: sticky; top: 90px; }
 
+/* --- CSS CHO CHAT MOBILE (New) --- */
+.desktop-chat {
+  display: block;
+}
+.mobile-chat-btn {
+  display: none; /* Mặc định ẩn trên Desktop */
+}
+
+/* Overlay Chat Mobile */
+.mobile-chat-overlay {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.6); z-index: 3000;
+  display: flex; align-items: center; justify-content: center;
+}
+.mobile-chat-content {
+  width: 90%; max-width: 400px; height: 70vh;
+  background: white; border-radius: 16px;
+  display: flex; flex-direction: column; overflow: hidden;
+  animation: slideUp 0.3s ease;
+}
+.mobile-chat-header {
+  padding: 15px; background: #f5f5f5; border-bottom: 1px solid #ddd;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.mobile-chat-header h3 { margin: 0; font-size: 1.1rem; color: #333; }
+.mobile-chat-header button { border: none; background: none; font-size: 1.5rem; cursor: pointer; color: #666; }
+
+/* Override ChatBox khi ở trong popup */
+.chat-box-styled.mobile-style { height: 100%; border: none; box-shadow: none; }
+
+@keyframes slideUp { from { transform: translateY(100px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+/* ----------------------- */
+
+.rps-result-container {
+  position: absolute;
+  top: 90px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: auto;
+  z-index: 2000 !important;
+  pointer-events: none;
+}
+
 .rps-result-toast {
-  background-color: #e8f5e9; color: #2e7d32; padding: 12px;
-  border-radius: 12px; text-align: center; font-weight: 600;
-  border: 1px solid #a5d6a7; animation: slideDown 0.5s ease;
+  background-color: #e8f5e9; 
+  color: #2e7d32; 
+  padding: 12px 24px;
+  border-radius: 50px; 
+  text-align: center; 
+  font-weight: 700;
+  font-size: 1.1rem;
+  border: 2px solid #a5d6a7; 
+  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+  animation: slideDown 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  min-width: 300px;
+  pointer-events: auto;
 }
 
 .full-screen-loader {
   position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-  background: rgba(255,255,255,0.95); /* Nền đục hơn chút để che nội dung */
+  background: rgba(255,255,255,0.95);
   z-index: 999; display: flex; align-items: center; justify-content: center;
 }
 .loader-content { text-align: center; }
@@ -707,7 +835,6 @@ watch(roomId, (newId, oldId) => {
   animation: spin 1s linear infinite; margin: 20px auto;
 }
 
-/* Style mới cho màn hình chờ phòng */
 .waiting-room-info h3 { font-size: 1.8rem; color: #444; margin-bottom: 10px; }
 .waiting-room-info p { color: #666; margin-bottom: 5px; font-size: 1.1rem; }
 .big-room-code {
@@ -726,7 +853,7 @@ watch(roomId, (newId, oldId) => {
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
 .status-card { background: #fff; padding: 40px; border-radius: 16px; text-align: center; color: #666; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
-/* 👇👇👇 THÊM CSS CHO NÚT HỦY 👇👇👇 */
+
 .cancel-wait-btn {
   margin-top: 25px;
   padding: 10px 28px;
@@ -751,45 +878,62 @@ watch(roomId, (newId, oldId) => {
 .cancel-wait-btn:active {
   transform: scale(0.95);
 }
-/* 👆👆👆 ------------------------ 👆👆👆 */
-/* Responsive cho Tablet và Mobile */
+
+/* --- RESPONSIVE & MOBILE --- */
 @media (max-width: 1024px) {
   .room-page {
-    padding-top: 80px; /* Giảm padding top chút cho đỡ trống */
+    padding-top: 80px;
     align-items: flex-start;
-    height: auto; /* Cho phép cuộn nếu nội dung dài */
+    height: auto;
   }
 
   .game-layout {
-    flex-direction: column; /* Xếp dọc: Bàn cờ trên, Chat dưới */
+    flex-direction: column;
     align-items: center;
     gap: 20px;
   }
 
   .main-column {
     width: 100%;
-    order: 1; /* Bàn cờ hiện trước */
+    order: 1;
   }
 
-  .side-column {
-    width: 100%;
-    min-width: auto;
-    order: 2; /* Chat hiện sau */
-    position: static; /* Bỏ sticky để chat trôi tự nhiên */
-    margin-top: 0;
+  /* Ẩn chat desktop khi màn hình nhỏ */
+  .desktop-chat {
+    display: none; 
   }
 
-  /* Ẩn bớt thông tin không cần thiết nếu muốn, hoặc chỉnh lại font */
   .room-header {
     flex-wrap: wrap;
     gap: 10px;
   }
+
+  /* Hiện nút chat mobile */
+  .mobile-chat-btn {
+    display: flex; align-items: center; justify-content: center;
+    position: fixed; bottom: 20px; right: 20px;
+    width: 60px; height: 60px; border-radius: 50%;
+    background: linear-gradient(45deg, #2196F3, #21CBF3);
+    color: white; border: none; font-size: 1.8rem;
+    box-shadow: 0 4px 15px rgba(33, 150, 243, 0.4);
+    z-index: 2500; cursor: pointer;
+    transition: transform 0.2s;
+  }
+  .mobile-chat-btn:active { transform: scale(0.9); }
+  
+  /* Chấm đỏ thông báo */
+  .unread-badge {
+    position: absolute; top: 0; right: 0;
+    width: 18px; height: 18px; background: #ff3d00;
+    border-radius: 50%; border: 2px solid white;
+    font-size: 0.8rem; font-weight: bold;
+    display: flex; align-items: center; justify-content: center;
+  }
 }
 
-/* Mobile nhỏ */
 @media (max-width: 600px) {
   .room-container {
-    padding: 0 10px; /* Giảm lề 2 bên */
+    padding: 0 10px;
   }
   
   .back-btn {
@@ -800,32 +944,5 @@ watch(roomId, (newId, oldId) => {
   .room-info-pill {
     padding: 6px 12px;
   }
-}
-
-.rps-result-container {
-  position: absolute; /* 👈 QUAN TRỌNG: Giúp thông báo nổi lên trên, không đẩy bàn cờ */
-  top: 90px;          /* Điều chỉnh vị trí dọc (ngay dưới Header) */
-  left: 50%;          /* Căn giữa ngang */
-  transform: translateX(-50%); /* Căn chính giữa tâm */
-  
-  width: auto;        /* Để chiều rộng tự co giãn theo nội dung */
-  z-index: 2000 !important; /* Luôn nổi lên trên cùng */
-  pointer-events: none; /* Cho phép bấm xuyên qua thông báo xuống bàn cờ (nếu cần) */
-}
-
-.rps-result-toast {
-  /* Giữ nguyên style cũ */
-  background-color: #e8f5e9; 
-  color: #2e7d32; 
-  padding: 12px 24px;
-  border-radius: 50px; 
-  text-align: center; 
-  font-weight: 700;
-  font-size: 1.1rem;
-  border: 2px solid #a5d6a7; 
-  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-  animation: slideDown 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  min-width: 300px;
-  pointer-events: auto; /* Cho phép copy text nếu cần */
 }
 </style>
