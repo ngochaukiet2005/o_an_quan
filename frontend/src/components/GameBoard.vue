@@ -1,6 +1,13 @@
 <template>
   <div class="game-wrapper" ref="gameWrapperRef">
-    
+
+    <div style="display: none; position: absolute; width: 0; height: 0; overflow: hidden;">
+       <img src="/img/hand-slap.png" alt="preload" />
+       <img src="/img/hand.png" alt="preload" />
+       <img src="/img/stone-dan.png" alt="preload" />
+       <img src="/img/stone-quan.png" alt="preload" />
+    </div>
+
     <HandActor 
       :x="handState.x" 
       :y="handState.y" 
@@ -211,9 +218,17 @@ const runMoveAnimation = async (history, skipTime = 0) => {
             if (timePassed < skipTime) { 
                 // Skip
             } else {
-                await wait(400); 
+                await wait(450); 
             }
-            timePassed += 400;
+            timePassed += 450;
+            // 2. DỪNG TRƯỚC KHI THẢ (200ms - Bằng với spread)
+            // (Tạo cảm giác tay khựng lại nhịp nhàng chuẩn bị thả)
+            if (timePassed < skipTime) {
+                // Skip
+            } else {
+                await wait(200);
+            }
+            timePassed += 200;
 
             if (handState.holdingCount > 0) handState.holdingCount--;
             if (displayBoard.value[idx]) displayBoard.value[idx].dan = 1;
@@ -221,9 +236,9 @@ const runMoveAnimation = async (history, skipTime = 0) => {
             if (timePassed < skipTime) {
                 // Skip
             } else {
-                await wait(150);
+                await wait(200);
             }
-            timePassed += 150;
+            timePassed += 200;
         }
         if (timePassed >= skipTime) await wait(500);
         timePassed += 500;
@@ -258,8 +273,8 @@ const runMoveAnimation = async (history, skipTime = 0) => {
         handState.x = pos.x;
         handState.y = pos.y;
         
-        await smartWait(500);
-        await smartWait(150);
+        await smartWait(450);
+        await smartWait(200);
 
         handState.holdingCount += count;
         if (displayBoard.value[index]) displayBoard.value[index].dan = 0;
@@ -316,7 +331,10 @@ const runMoveAnimation = async (history, skipTime = 0) => {
         handState.x = pos.x;
         handState.y = pos.y;
         
-        await smartWait(400);
+        await smartWait(450);
+        // 2. KHỰNG LẠI TRƯỚC KHI THU (Thêm mới 200ms)
+        await smartWait(200);
+        
         if (displayBoard.value[index]) {
             const totalStones = displayBoard.value[index].dan + (displayBoard.value[index].quan || 0);
             displayBoard.value[index].dan = 0;
