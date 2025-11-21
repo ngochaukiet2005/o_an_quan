@@ -261,7 +261,7 @@ function setupSocketListeners() {
         try {
             isAnimating.value = true;
             console.log(`🎬 Running live animation...`);
-            await gameBoardRef.value.runMoveAnimation(data.moveHistory, false); 
+            await gameBoardRef.value.runMoveAnimation(data.moveHistory, false, actingPlayerId); 
         } catch (error) {
             console.error("⚠️ Animation error (F5 Replay):", error);
         } finally {

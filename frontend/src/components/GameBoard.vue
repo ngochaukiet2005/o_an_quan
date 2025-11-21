@@ -151,9 +151,20 @@ const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 // Trong frontend/src/components/GameBoard.vue
 
 // 👇 Sửa dòng khai báo để nhận thêm tham số skipTime (mặc định là 0)
-const runMoveAnimation = async (history, skipTime = 0) => {
+const runMoveAnimation = async (history, skipTime = 0, movingPlayerId = null) => {
   if (!history || history.length === 0) return;
-
+  // === 🛠️ FIX LỖI XOAY TAY 🛠️ ===
+  // Bắt buộc sử dụng chế độ xoay thủ công cho toàn bộ chuỗi animation này
+  handState.useCustomRotation = true;
+  
+  if (movingPlayerId) {
+      // Nếu người đi KHÔNG phải là tôi -> Xoay tay 180 độ (đối thủ)
+      handState.customIsRotated = (movingPlayerId !== props.playerId);
+  } else {
+      // Fallback nếu không truyền ID (giữ logic cũ nhưng rủi ro)
+      handState.customIsRotated = isOpponentTurn.value;
+  }
+  // ==============================
   // Biến theo dõi thời gian đã trôi qua trong animation
   let timePassed = 0;
 
@@ -334,7 +345,6 @@ const runMoveAnimation = async (history, skipTime = 0) => {
         await smartWait(450);
         // 2. KHỰNG LẠI TRƯỚC KHI THU (Thêm mới 200ms)
         await smartWait(200);
-        
         if (displayBoard.value[index]) {
             const totalStones = displayBoard.value[index].dan + (displayBoard.value[index].quan || 0);
             displayBoard.value[index].dan = 0;
