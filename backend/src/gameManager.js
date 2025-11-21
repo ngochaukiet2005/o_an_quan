@@ -197,11 +197,13 @@ export const handleSubmitRps = (io, socket, payload) => {
       player1Id: room.players[0].id,
       player2Id: room.players[1].id,
       // =======================
+      winnerId: rpsState.winnerId, // ID người thắng
     };
 
     // 2. Gửi sự kiện 'rpsResult' mà frontend đang lắng nghe
     io.to(room.id).emit("rpsResult", rpsResultData);
-
+    // Lấy ID người thắng ra biến riêng để dùng trong timeout cho chắc chắn
+    const winnerId = rpsState.winnerId;
     // 3. ĐẶT THỜI GIAN CHỜ (cho animation) trước khi bắt đầu game
     setTimeout(() => {
       // Kiểm tra xem phòng còn tồn tại không (phòng hờ người chơi thoát)
@@ -209,7 +211,26 @@ export const handleSubmitRps = (io, socket, payload) => {
         console.log(`Phòng ${room.id} đã bị hủy trong khi chờ animation RPS.`);
         return;
       }
+      // =========================================================
+      // 👇👇👇 LOGIC MỚI: HOÁN ĐỔI VỊ TRÍ P1/P2 DỰA THEO KẾT QUẢ 👇👇👇
+      // =========================================================
+      const winnerId = rpsState.winnerId;
+      
+      // Nếu người thắng KHÔNG PHẢI là người đầu tiên (nghĩa là P2 thắng)
+      if (room.players[0].id !== winnerId) {
+          console.log(`🔀 Hoán đổi: ${room.players[1].name} thắng RPS -> Lên làm Player 1.`);
+          
+          // 1. Hoán đổi vị trí trong mảng players
+          const temp = room.players[0];
+          room.players[0] = room.players[1];
+          room.players[1] = temp;
 
+          // 2. Cập nhật lại Ký hiệu (Symbol)
+          // Người ở index 0 luôn là 'X' (P1), người ở index 1 luôn là 'O' (P2)
+          room.players[0].symbol = 'X';
+          room.players[1].symbol = 'O';
+      }
+      // =========================================================
       console.log(`Bắt đầu game cho phòng ${room.id} sau animation.`);
 
       // 4. Di chuyển logic bắt đầu game vào đây

@@ -143,6 +143,9 @@ export class OAnQuanGame {
         this.state.board[i].quan = 0;
       });
       this.state.gameMessage = `Người chơi ${player} gây giống bằng 5 Dân của mình (bị trừ 5 điểm Dân).`;
+      // --- BỔ SUNG DÒNG NÀY ---
+      this._logAction('borrow', { player, indices: civilIndices }); 
+      // ------------------------
       return false;
     }
 
@@ -174,6 +177,9 @@ export class OAnQuanGame {
     });
 
     this.state.gameMessage = `Người chơi ${player} vay ${need} Dân từ đối thủ để gây giống (ghi nợ ${need} Dân).`;
+    // --- BỔ SUNG DÒNG NÀY ---
+    this._logAction('borrow', { player, indices: civilIndices });
+    // ------------------------
     return false;
   }
 

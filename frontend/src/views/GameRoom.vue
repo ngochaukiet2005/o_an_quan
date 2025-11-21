@@ -6,7 +6,6 @@
         <button class="back-btn" @click="handleLeaveRequest">
           ← Rời phòng
         </button>
-        
         <div class="room-info-pill" v-if="!isQuickPlay">
           <span class="label">Phòng:</span>
           <span class="code">{{ roomId }}</span>
@@ -269,14 +268,15 @@ function setupSocketListeners() {
             socket.emit("game:animation_finished", roomId.value);
             isAnimating.value = false;
             
+            // 👇👇👇 [SỬA LẠI ĐOẠN NÀY] 👇👇👇
+            // Kiểm tra nếu có dữ liệu timer đang chờ thì chạy ngay
             if (pendingTimerData.value) {
-                 // ... (logic timer) ...
-                if (typeof startTimer === 'function') 
-                  startTimer(pendingTimerData.value);
-                } else {
-                  startTimerCountDown(pendingTimerData.value);
-                }
-                  pendingTimerData.value = null;
+                console.log("⏱️ Starting pending timer...", pendingTimerData.value);
+                // Gọi đúng tên hàm startTimerCountDown
+                startTimerCountDown(pendingTimerData.value); 
+                pendingTimerData.value = null; // Reset biến chờ
+            }
+            // 👆👆👆 --------------------- 👆👆👆
         }
       }
     } else {
@@ -425,7 +425,7 @@ function handleStateUpdate(state) {
           pendingTimerData.value = timerData;
       } else {
           // Nếu không diễn hoạt thì chạy luôn
-          startTimer(timerData);
+          startTimerCountDown(timerData);
       }
   }
   // 👆👆👆 ------------------------------------ 👆👆👆
@@ -669,6 +669,8 @@ function fallbackCopyText(text) {
     showCustomNotification("Lỗi", "Không thể sao chép mã phòng.");
   }
 }
+
+// Trong script setup của GameRoom.vue
 
 // Watcher: Tắt thông báo tin nhắn mới khi mở chat mobile
 watch(showMobileChat, (val) => {
