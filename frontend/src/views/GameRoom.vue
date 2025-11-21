@@ -280,16 +280,18 @@ function setupSocketListeners() {
         }
       }
     } else {
-      // 👇👇👇 [BẮT BUỘC PHẢI CÓ ĐOẠN NÀY] 👇👇👇
-      // Nếu Server đang chờ (isWaitingForAnimation = true) mà không có gì để diễn hoạt
-      // thì Client PHẢI báo xong ngay lập tức để Server mở khóa timer.
-      if (data.isWaitingForAnimation) {
-          console.log("⚠️ Server đang chờ nhưng không có animation. Báo xong ngay!");
-          socket.emit("game:animation_finished", roomId.value);
+        if (data.isWaitingForAnimation) {
+          // Logic mới: Nếu Server đang chờ mà mình không có gì để diễn (do F5)
+          // Thì mình chỉ khóa bàn, tắt timer và NGỒI CHỜ sự kiện 'timer:start' từ server
+          console.log("🛑 Đã F5: Hiện kết quả và chờ đối thủ diễn hoạt xong...");
+          isServerWaiting.value = true;       // Khóa bàn cờ
+          timerValue.value = null;            // Tắt đồng hồ đếm ngược
+          clearInterval(timerInterval.value); // Đảm bảo không đếm bậy
+          
+          // TUYỆT ĐỐI KHÔNG gọi socket.emit("game:animation_finished")
+          // Hãy để máy của đối thủ (đang chạy animation) gửi tín hiệu đó.
+        }
       }
-      // 👆👆👆 ---------------------------------- 👆👆👆
-    }
-    
     handleStateUpdate(data);
   };
 

@@ -356,40 +356,44 @@ function startTurnTimer(room) {
 // 3️⃣ THÊM HÀM XỬ LÝ SỰ KIỆN MỚI
 // backend/src/gameManager.js
 
+// backend/src/gameManager.js
+
 export const handleAnimationFinished = (io, socket, roomId) => {
     const room = rooms.get(roomId);
     if (!room) return;
     
-    // 1. Lấy thông tin người chơi đang nắm lượt (người cần suy nghĩ)
-    const gameState = room.game.getState();
-    const currentPlayerIndex = gameState.currentPlayer; // Trả về 1 hoặc 2
-    const activePlayer = room.players[currentPlayerIndex - 1]; // Lấy player object
+    // Chỉ xử lý nếu server thực sự đang ở trạng thái chờ diễn hoạt
+    if (room.isWaitingForAnimation) {
+        // Kiểm tra: Người gửi tín hiệu có phải là thành viên trong phòng không?
+        // (Không quan trọng là P1 hay P2, hay ai đang cầm lượt, 
+        // chỉ cần 1 người báo xong là tính cho cả phòng xong để tránh Deadlock)
+        const isMember = room.players.some(p => p.id === socket.id);
 
-    if (room.isWaitingForAnimation && activePlayer) {
-        // Kiểm tra Socket.IO xem socket cũ của người chơi này còn sống không
-      const oldSocket = io.sockets.sockets.get(activePlayer.id);
+        if (isMember) {
+            console.log(`🎬 Animation finished (tín hiệu từ ${socket.id}). Mở khóa bàn cờ & Bắt đầu Timer.`);
+            // === 👇 BỔ SUNG QUAN TRỌNG 👇 ===
+            // Gửi lại state mới nhất cho cả phòng để cập nhật ID người chơi (nếu có người vừa F5)
+            const currentState = room.game.getState();
+            const currentPlayerSocket = room.players[currentState.currentPlayer - 1];
 
-      // CHẤP NHẬN BẮT ĐẦU LƯỢT NẾU:
-      // 1. ID khớp hoàn toàn (trường hợp bình thường)
-      const isIdMatch = socket.id === activePlayer.id;
-      
-      // 2. HOẶC Socket cũ đã chết/không tìm thấy, và có một Socket mới đang ở trong phòng gửi tín hiệu
-      // (Đây chính là trường hợp F5 nhanh quá Server chưa kịp cập nhật ID)
-      const isZombieCase = !oldSocket; 
-
-      if (isIdMatch || isZombieCase) {
-          if (isZombieCase) {
-              console.log(`♻️ [Fix F5] Phát hiện kết nối lại từ ${activePlayer.name}. Cập nhật ID: ${activePlayer.id} -> ${socket.id}`);
-              activePlayer.id = socket.id; // Cập nhật lại ID mới ngay lập tức
-              activePlayer.isDisconnected = false;
-          }
-          
-          console.log(`🎬 Animation finished. Bắt đầu timer cho ${activePlayer.name}.`);
-          startTurnTimer(room);
-      } else {
-          console.log(`⏳ Socket ${socket.id} báo xong, nhưng active player là ${activePlayer.id} (vẫn đang kết nối). Bỏ qua.`);
-      }
-  }
+            io.to(room.id).emit("update_game_state", {
+              players: room.players, // <-- Cập nhật danh sách player (chứa ID mới) cho đối thủ
+              startingPlayerId: room.nextTurnPlayerId,
+              nextTurnPlayerId: currentPlayerSocket ? currentPlayerSocket.id : null,
+              board: currentState.board,
+              scores: currentState.scores,
+              debt: currentState.debt,
+              roomId: room.id,
+              gameMessage: currentState.gameMessage,
+              isWaitingForAnimation: false, // Đánh dấu đã xong animation
+              moveHistory: [], // Không gửi lịch sử để tránh diễn lại
+            });
+            // === 👆 KẾT THÚC BỔ SUNG 👆 ===
+            // Hàm này sẽ set isWaitingForAnimation = false và emit 'timer:start'
+            // Khi Client F5 nhận 'timer:start', nó sẽ tự động set isServerWaiting = false và cho chọn ô.
+            startTurnTimer(room);
+        }
+    }
 };
 /**
  * (C -> S) Xử lý một nước đi
@@ -596,12 +600,12 @@ export const handleRequestGameState = async (io, socket, roomId) => {
     let boardToSend = currentState.board;
     let historyToSend = [];
 
-    // Nếu đang chờ animation, gửi bàn cờ CŨ để Client diễn hoạt lại từ đầu
+    // Nếu đang chờ animation, ta vẫn gửi board hiện tại (kết quả) và KHÔNG gửi history
+    // Để client hiển thị kết quả tĩnh và chờ đối thủ xem xong.
     if (room.isWaitingForAnimation && room.replayData) {
-         boardToSend = room.replayData.prevBoard;
-         historyToSend = room.replayData.moveHistory;
+         boardToSend = currentState.board; // Gửi bàn cờ hiện tại (đã xong)
+         historyToSend = [];               // Không gửi lịch sử đi nữa
     }
-    // 👆👆👆 ------------------------------------------- 👆👆👆
     const stateData = {
       players: room.players,
       startingPlayerId: room.nextTurnPlayerId,
