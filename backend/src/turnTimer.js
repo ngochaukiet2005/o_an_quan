@@ -18,11 +18,13 @@ export class TurnTimerManager {
    * @param {object} room 
    */
   start(room) {
+    console.log(`[TIMER] 🟢 START Room ${room.id} | Turn: P${room.game.getState().currentPlayer}`);
     // Xóa timer cũ (nếu có)
     this.clear(room, false); // false = không cần báo client, vì sắp báo 'start'
 
     const game = room.game;
     const currentPlayer = game.getState().currentPlayer;
+    const GRACE_PERIOD = 2000; // Thời gian bù trễ mạng (2 giây)
     // 👇👇👇 THÊM DÒNG NÀY ĐỂ KHAI BÁO DEADLINE 👇👇👇
     const deadline = Date.now() + TURN_DURATION;
     // 👆👆👆 ------------------------------------ 👆👆👆
@@ -36,7 +38,7 @@ export class TurnTimerManager {
       // Gọi hàm callback (handleTimerExpires) từ gameManager
       this.onTimerExpires(room, currentPlayer);
 
-    }, TURN_DURATION);
+    }, TURN_DURATION + GRACE_PERIOD);
 
     this.timers.set(room.id, timerId);
   }
@@ -48,6 +50,7 @@ export class TurnTimerManager {
    */
   clear(room, notifyClients = true) {
     if (this.timers.has(room.id)) {
+      console.log(`[TIMER] ⚪ STOPPED Room ${room.id}`);
       clearTimeout(this.timers.get(room.id));
       this.timers.delete(room.id);
 

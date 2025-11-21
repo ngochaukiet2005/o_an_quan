@@ -1,6 +1,9 @@
 import { io } from "socket.io-client";
 import { ref } from "vue";
-
+// Thêm đoạn này vào sau các dòng import:
+const log = (type, msg, data = '') => {
+  console.log(`%c[${type}] ${msg}`, 'color: #bada55; font-weight: bold;', data);
+};
 // === TỰ ĐỘNG CẤU HÌNH URL ===
 // 1. import.meta.env.PROD: Nếu đang chạy bản build (npm run build), dùng đường dẫn tương đối "/"
 // 2. window.location.hostname: Tự động lấy "localhost" hoặc IP (ví dụ "192.168.1.15") từ thanh địa chỉ trình duyệt
@@ -62,10 +65,12 @@ function requestGameState(roomId) {
 }
 
 function makeMove(roomId, payload) {
+  log('⬆️ SEND', 'make_move', payload); // <-- Thêm
   getSocket().emit("make_move", { roomId, ...payload });
 }
 
 function submitRps(roomId, choice) {
+  log('⬆️ SEND', 'submit_rps', choice); // <-- Thêm
   getSocket().emit("game:submit_rps", { roomId, choice });
 }
 
@@ -87,7 +92,10 @@ function onRoomJoined(cb) {
 }
 
 function onUpdateGameState(cb) {
-  getSocket().on("update_game_state", cb);
+  getSocket().on("update_game_state", (data) => {
+    log('⬇️ RECV', 'update_game_state', data); // <-- Thêm
+    cb(data);
+  });
 }
 
 function onPlayerJoined(cb) {
@@ -98,14 +106,20 @@ function onError(cb) {
   getSocket().on("error", cb);
 }
 function onGameStart(cb) {
-  getSocket().on("game_start", cb);
+  getSocket().on("game_start", (data) => {
+    log('⬇️ RECV', 'game_start', data); // <-- Thêm
+    cb(data);
+  });
 }
 
 function onNewMessage(cb) {
   getSocket().on("chat:receive", cb);
 }
 function onAnimate(cb) {
-  getSocket().on("game:perform_animation", cb);
+  getSocket().on("game:perform_animation", (data) => {
+    log('⬇️ RECV', 'perform_animation', `Steps: ${data.length}`); // <-- Thêm
+    cb(data);
+  });
 }
 function onQueueUpdate(cb) {
   getSocket().on("queue_update", cb);

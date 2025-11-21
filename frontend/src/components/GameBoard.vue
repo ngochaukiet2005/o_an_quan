@@ -104,7 +104,7 @@ const emits = defineEmits(["move", "score-update", "show-borrow-confirm"]);
 
 const gameWrapperRef = ref(null);
 const cellRefs = reactive({});
-
+const isProcessing = ref(false); // <--- THÊM DÒNG NÀY
 const handState = reactive({
   x: 0, 
   y: 0, 
@@ -124,6 +124,7 @@ const displayBoard = ref([]);
 watch(() => props.board, (newVal) => {
   if (newVal && newVal.length > 0) {
     displayBoard.value = JSON.parse(JSON.stringify(newVal));
+    isProcessing.value = false;
   }
 }, { immediate: true, deep: true });
 
@@ -355,8 +356,11 @@ const isClickable = (index) => {
 };
 
 function handleClick(index) {
-  if (!isClickable(index)) return;
+  if (!isClickable(index) || isProcessing.value) return;
+  isProcessing.value = true;
   emits("move", index);
+  // Mở khóa an toàn sau 1s (phòng hờ server không phản hồi)
+  setTimeout(() => { isProcessing.value = false; }, 1000);
 }
 </script>
 

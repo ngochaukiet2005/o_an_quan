@@ -20,12 +20,18 @@ app.use(cors({
 }));
 
 const server = http.createServer(app);
+// --- SỬA ĐOẠN NÀY ---
 const io = new Server(server, {
   cors: {
-    origin: "*", // Cho phép kết nối Socket từ mọi nguồn (quan trọng cho LAN)
+    origin: "*", 
     methods: ["GET", "POST"],
   },
+  // Thêm cấu hình tối ưu cho LAN:
+  transports: ['websocket'], // Bắt buộc dùng WebSocket ngay, bỏ qua Polling
+  pingTimeout: 10000,        // 10 giây không thấy phản hồi là coi như mất kết nối
+  pingInterval: 25000        // Gửi gói tin kiểm tra mỗi 25 giây
 });
+// --------------------
 
 // Gắn toàn bộ logic game (Socket Handlers)
 setupSocketHandlers(io);
