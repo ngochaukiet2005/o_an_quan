@@ -364,7 +364,10 @@ function handleClick(index) {
 .game-wrapper {
   margin-top: 10px;
   text-align: center;
-  position: relative; 
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
 }
 
 /* Container để tạo bóng đổ cho cả bàn */
@@ -388,6 +391,9 @@ function handleClick(index) {
   border-radius: 40px;
   padding: 10px;
   user-select: none; 
+  
+  /* Hiệu ứng xoay bàn cờ mượt mà */
+  transition: transform 0.6s ease-in-out;
 }
 
 .board-row {
@@ -442,11 +448,9 @@ function handleClick(index) {
   pointer-events: none;
 }
 
-/* Số lượng sỏi */
+/* --- CẤU HÌNH SỐ LƯỢNG SỎI (STONE COUNTER) --- */
 .stone-counter {
   position: absolute;
-  bottom: 5px;
-  right: 5px;
   z-index: 200;
   background-color: rgba(0, 0, 0, 0.6);
   color: white;
@@ -455,11 +459,18 @@ function handleClick(index) {
   font-size: 0.8rem;
   font-weight: bold;
   pointer-events: none;
+  
+  /* Vị trí mặc định cho các ô Dân (góc phải dưới) */
+  bottom: 5px;
+  right: 5px;
+  
+  /* Hiệu ứng xoay số mượt mà */
+  transition: transform 0.6s ease-in-out;
 }
 
 /* Ô QUAN */
 .quan-cell {
-  background: #ffecb3; /* Màu vàng nhạt sang trọng cho Quan */
+  background: #ffecb3;
   border: 4px solid #8d6e63;
   box-shadow: inset 0 0 20px rgba(141, 110, 99, 0.3);
 }
@@ -467,54 +478,70 @@ function handleClick(index) {
 .quan-left {
   grid-row: 1 / span 2; 
   grid-column: 1;
-  border-radius: 60px 12px 12px 60px; 
+  border-radius: 60px 12px 12px 60px; /* Cong bên trái */
+}
+/* Số của Quan trái (0): Mặc định nằm góc phải dưới (sát đường thẳng) */
+.quan-left .stone-counter {
+    right: 10px;
+    bottom: 10px;
 }
 
 .quan-right {
   grid-row: 1 / span 2; 
   grid-column: 3;
-  border-radius: 12px 60px 60px 12px;
+  border-radius: 12px 60px 60px 12px; /* Cong bên phải */
+}
+/* Số của Quan phải (6): Chuyển sang góc TRÁI dưới (sát đường thẳng) */
+.quan-right .stone-counter {
+    right: auto;
+    left: 10px;
+    bottom: 10px;
 }
 
-.cell-row-a { grid-row: 1; grid-column: 2; }
-.cell-row-b { grid-row: 2; grid-column: 2; }
 
-/* Xoay bàn cờ cho P2 */
+/* =========================================
+   CẤU HÌNH GÓC NHÌN NGƯỜI CHƠI 2 (P2)
+   ========================================= */
+
+/* 1. Xoay toàn bộ bàn cờ 180 độ */
 .p2-view {
   transform: rotate(180deg);
 }
+
+/* 2. KHÔNG xoay ngược ô cờ (giữ nguyên 0deg hoặc bỏ dòng này)
+      Để ô cờ xoay theo bàn, giữ đúng hướng cong ra ngoài */
 .p2-view .cell {
-  transform: rotate(180deg);
-}
-.p2-view .stone-counter {
+  /* transform: rotate(180deg);  <-- DÒNG CŨ SAI, ĐÃ XÓA */
   transform: rotate(0deg); 
 }
+
+/* 3. Xoay con số 180 độ để đứng thẳng (đọc được) 
+      Vì ô cờ đang lộn ngược nên số cũng lộn ngược, cần xoay lại */
+.p2-view .stone-counter {
+  transform: rotate(180deg); 
+}
+
+/* 4. Xoay số chỉ mục (index) tương tự */
 .p2-view .cell-index {
    transform: rotate(180deg);
-   top: auto; bottom: 2px; left: auto; right: 5px; /* Điều chỉnh vị trí số khi xoay */
+   /* Điều chỉnh lại vị trí số index cho đẹp khi xoay */
+   top: auto; bottom: 2px; left: auto; right: 5px; 
 }
+
+/* 5. Xoay hiệu ứng hover cho đúng hướng */
 .p2-view .cell.clickable:hover {
   background-color: #f7f3e8;
-  transform: rotate(180deg) translateY(-2px); 
-}
-/* 👇👇👇 SỬA & THÊM VÀO CUỐI 👇👇👇 */
-
-.game-wrapper {
-  margin-top: 10px;
-  text-align: center;
-  position: relative;
-  /* Đảm bảo wrapper bao trọn để tính toán tọa độ tay chính xác */
-  width: 100%;
-  display: flex;
-  justify-content: center;
+  /* Vì ô đang lộn ngược, translateY âm sẽ đẩy nó xuống dưới, cần đổi thành dương */
+  transform: translateY(2px); 
 }
 
-/* Responsive Scale cho bàn cờ */
+
+/* Responsive Scale */
 @media (max-width: 850px) {
   .board-container {
-    transform-origin: top center; /* Thu nhỏ từ trên xuống */
-    transform: scale(0.85); /* Thu nhỏ 85% */
-    margin-bottom: -30px; /* Bù lại khoảng trống do thu nhỏ */
+    transform-origin: top center;
+    transform: scale(0.85);
+    margin-bottom: -30px;
   }
 }
 
@@ -527,7 +554,7 @@ function handleClick(index) {
 
 @media (max-width: 480px) {
   .board-container {
-    transform: scale(0.48); /* Thu nhỏ 48% cho điện thoại dọc */
+    transform: scale(0.48);
     margin-bottom: -120px;
   }
 }
