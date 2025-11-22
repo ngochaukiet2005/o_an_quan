@@ -265,6 +265,7 @@ function setupSocketListeners() {
         } catch (error) {
             console.error("⚠️ Animation error (F5 Replay):", error);
         } finally {
+            handleStateUpdate(data);
             socket.emit("game:animation_finished", roomId.value);
             isAnimating.value = false;
             
@@ -278,6 +279,9 @@ function setupSocketListeners() {
             }
             // 👆👆👆 --------------------- 👆👆👆
         }
+      } else {
+          // Trường hợp không tìm thấy ref bàn cờ (hiếm gặp), cập nhật luôn
+          handleStateUpdate(data);
       }
     } else {
         if (data.isWaitingForAnimation) {
@@ -291,8 +295,8 @@ function setupSocketListeners() {
           // TUYỆT ĐỐI KHÔNG gọi socket.emit("game:animation_finished")
           // Hãy để máy của đối thủ (đang chạy animation) gửi tín hiệu đó.
         }
+        handleStateUpdate(data);
       }
-    handleStateUpdate(data);
   };
 
   socket.on("game_start", onGameStateHandler);

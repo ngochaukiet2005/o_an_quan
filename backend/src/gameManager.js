@@ -363,7 +363,7 @@ function performMove(io, room, cellIndex, direction) {
   });
   if (room.animationTimeout) clearTimeout(room.animationTimeout);
   // Tính thời gian chờ: Mỗi bước đi khoảng 1s + 3s đệm. Tối đa chờ 25s.
-  const estimatedDuration = Math.min((moveHistory.length * 1000) + 3000, 25000);
+  const estimatedDuration = Math.min((moveHistory.length * 5000) + 5000, 300000);
   console.log(`[ANIMATION] ⏳ Waiting ${estimatedDuration}ms for client animation...`);
   room.animationTimeout = setTimeout(() => {
       if (room.isWaitingForAnimation) {

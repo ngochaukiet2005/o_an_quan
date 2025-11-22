@@ -7,6 +7,11 @@ export class GameWithHistory extends OAnQuanGame {
     this.moveHistory = []; // Nơi lưu lịch sử nước đi
   }
 
+  // Ghi đè để chặn các log tự động của lớp cha (SPREAD, CAPTURE...)
+  // Vì GameWithHistory tự quản lý moveHistory cho diễn hoạt
+  _logAction() {
+    // intentionally left blank
+  }
   /**
    * Lấy lịch sử và xóa ngay sau đó (để không trùng lặp ở lượt sau)
    */
