@@ -160,8 +160,11 @@ const runMoveAnimation = async (history, skipTime = 0, movingPlayerId = null) =>
   if (movingPlayerId) {
       // Nếu người đi KHÔNG phải là tôi -> Xoay tay 180 độ (đối thủ)
       handState.customIsRotated = (movingPlayerId !== props.playerId);
-  } else {
+  } else if (history[0] && history[0].player !== undefined) {
       // Fallback nếu không truyền ID (giữ logic cũ nhưng rủi ro)
+      handState.customIsRotated = (history[0].player !== myPlayerNumber.value);
+  }
+  else {
       handState.customIsRotated = isOpponentTurn.value;
   }
   // ==============================
@@ -206,7 +209,7 @@ const runMoveAnimation = async (history, skipTime = 0, movingPlayerId = null) =>
 
         handState.show = false;
         // Nếu đang tua thì không hiện popup confirm nữa (coi như đã đồng ý)
-        if (skipTime === 0) {
+        if (!skipTime || skipTime === 0) {
             await new Promise((resolve) => {
                 emits('show-borrow-confirm', { player: action.player, callback: resolve });
             });

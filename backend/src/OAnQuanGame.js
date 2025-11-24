@@ -396,7 +396,7 @@ export class OAnQuanGame {
       this.calculateFinalScores();
     } else {
       // Đổi lượt
-      this.state.currentPlayer = this.getOpponent(currentPlayer);
+      this.checkAndHandleBorrowing(this.state.currentPlayer);
       if (!this.state.gameMessage) {
         this.state.gameMessage = `Đến lượt Người chơi ${this.state.currentPlayer}.`;
       }
