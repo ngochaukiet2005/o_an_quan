@@ -173,7 +173,7 @@ const currentTurnId = ref(null);
 const messages = ref([]);
 const gamePhase = ref("loading");
 
-// --- State Chat Mobile (Mới) ---
+// --- State Chat Mobile ---
 const showMobileChat = ref(false);
 const hasUnreadMessages = ref(false);
 
@@ -217,107 +217,38 @@ const canInteract = computed(() => {
   return timerValue.value !== null && !isServerWaiting.value && !isAnimating.value;
 });
 
-// --- SOCKET LISTENERS ---
+// --- SOCKET LISTENERS (ĐÃ CẬP NHẬT) ---
 function setupSocketListeners() {
-  socketService.offAll(); // Dùng offAll để an toàn với file socketService hiện tại của bạn
-  const socket = socketService.getSocket();
+  // Xóa các listener cũ để tránh trùng lặp
+  socketService.offAll(); 
 
-  // Tìm đoạn này trong setupSocketListeners và thay thế:
+  // 1. Game Flow Handlers
+  socketService.onGameStart(onGameStateHandler);
+  socketService.onUpdateGameState(onGameStateHandler);
+  socketService.onGameOver(onGameOver);
 
-  const onGameStateHandler = async (data) => {
-    if (gamePhase.value === 'animation' && !animationFinished.value) {
-        console.log("⏳ Animation đang chạy, tạm hoãn update game state...");
-        pendingGameState.value = data;
-        return;
-    }
-    // Kiểm tra xem có lịch sử diễn hoạt không
-    const hasAnimationData = data.moveHistory && data.moveHistory.length > 0;
-
-    // 👇👇👇 [QUAN TRỌNG] Bật cờ đang diễn hoạt NGAY LẬP TỨC 👇👇👇
-    if (hasAnimationData) {
-        isAnimating.value = true; 
-    }
-    // 👆👆👆 ------------------------------------------------- 👆👆👆
-    // 1. Fix hiển thị khi F5 (Đã có)
-    if (board.value.length === 0) {
-        handleStateUpdate(data); 
-        await nextTick(); 
-    }
-    
-    // 2. Xử lý Animation
-    if (data.moveHistory && data.moveHistory.length > 0) {
-      await nextTick();
-      if (gameBoardRef.value) {
-        // ... (Đoạn logic tính điểm và chạy animation giữ nguyên) ...
-        const actingPlayerId = data.startingPlayerId || currentTurnId.value;
-        const earnedPoints = calculateTurnPoints(data.moveHistory);
-        const pIndex = players.value.findIndex(p => p.id === actingPlayerId);
-        if (pIndex !== -1) {
-           let finalScoreObj = (players.value[pIndex].symbol === 'X') ? data.scores.player1 : data.scores.player2;
-           const finalTotalScore = finalScoreObj ? (finalScoreObj.quan * 5 + finalScoreObj.dan) : 0;
-           players.value[pIndex].score = finalTotalScore - earnedPoints;
-        }
-
-        try {
-            isAnimating.value = true;
-            console.log(`🎬 Running live animation...`);
-            await gameBoardRef.value.runMoveAnimation(data.moveHistory, 0, actingPlayerId);
-        } catch (error) {
-            console.error("⚠️ Animation error (F5 Replay):", error);
-        } finally {
-            handleStateUpdate(data);
-            socket.emit("game:animation_finished", roomId.value);
-            isAnimating.value = false;
-            
-            // 👇👇👇 [SỬA LẠI ĐOẠN NÀY] 👇👇👇
-            // Kiểm tra nếu có dữ liệu timer đang chờ thì chạy ngay
-            if (pendingTimerData.value) {
-                console.log("⏱️ Starting pending timer...", pendingTimerData.value);
-                // Gọi đúng tên hàm startTimerCountDown
-                startTimerCountDown(pendingTimerData.value); 
-                pendingTimerData.value = null; // Reset biến chờ
-            }
-            // 👆👆👆 --------------------- 👆👆👆
-        }
-      } else {
-          // Trường hợp không tìm thấy ref bàn cờ (hiếm gặp), cập nhật luôn
-          handleStateUpdate(data);
-      }
-    } else {
-        if (data.isWaitingForAnimation) {
-          // Logic mới: Nếu Server đang chờ mà mình không có gì để diễn (do F5)
-          // Thì mình chỉ khóa bàn, tắt timer và NGỒI CHỜ sự kiện 'timer:start' từ server
-          console.log("🛑 Đã F5: Hiện kết quả và chờ đối thủ diễn hoạt xong...");
-          isServerWaiting.value = true;       // Khóa bàn cờ
-          timerValue.value = null;            // Tắt đồng hồ đếm ngược
-          clearInterval(timerInterval.value); // Đảm bảo không đếm bậy
-          
-          // TUYỆT ĐỐI KHÔNG gọi socket.emit("game:animation_finished")
-          // Hãy để máy của đối thủ (đang chạy animation) gửi tín hiệu đó.
-        }
-        handleStateUpdate(data);
-      }
-  };
-
-  socket.on("game_start", onGameStateHandler);
-  socket.on("update_game_state", onGameStateHandler);
-  socket.on("timer:start", (data) => {
+  // 2. Timer Handlers (Dùng hàm bao từ service)
+  socketService.onTimerStart((data) => {
     isServerWaiting.value = false; // Mở khóa bàn cờ
     if (isAnimating.value) pendingTimerData.value = data; 
     else startTimerCountDown(data); 
   });
-  socket.on("timer:clear", () => {
+
+  socketService.onTimerClear(() => {
     clearInterval(timerInterval.value);
     timerValue.value = null;
     pendingTimerData.value = null;
   });
-  socket.on("game:start_rps", (data) => {
+
+  // 3. RPS Handlers
+  socketService.onStartRps((data) => {
     isRpsRetry.value = data.isRetry;
     gamePhase.value = "rps";
     rpsRound.value++;
     animationFinished.value = false;
   });
-  socket.on("rpsResult", (data) => {
+
+  socketService.onRpsResult((data) => {
     rpsResultData.value = data; 
     const myId = playerId.value;
     if (myId === data.player1Id) {
@@ -327,30 +258,28 @@ function setupSocketListeners() {
     }
     gamePhase.value = 'animation'; 
   });
-  socket.on("game_over", onGameOver);
 
-  // 👇 Cập nhật Logic Chat: Hiện thông báo đỏ nếu đang đóng chat mobile
-  socket.on("chat:receive", (msg) => {
+  // 4. Chat & Room Handlers
+  socketService.onNewMessage((msg) => {
     messages.value.push(msg);
-    if (!showMobileChat.value) {
-      hasUnreadMessages.value = true;
-    }
+    if (!showMobileChat.value) hasUnreadMessages.value = true;
   });
 
-  socket.on("room:player-joined", (data) => {
+  socketService.onPlayerJoined((data) => {
     messages.value.push({ senderName: "Hệ thống", message: `${data.name} đã vào phòng.` });
   });
-  socket.on("room:joined", (data) => {
+
+  socketService.onRoomJoined((data) => {
     if (data.players) {
         players.value = data.players.map(p => ({ ...p, score: p.score || 0 }));
     }
   });
   
-  socket.on("error", (err) => {
+  socketService.onError((err) => {
       showCustomNotification("Lỗi", err.message);
   });
   
-  socket.on("kicked_to_menu", (data) => {
+  socketService.onKicked((data) => {
       showCustomNotification("Kết thúc", data.message, () => {
           router.push("/play");
       });
@@ -397,6 +326,80 @@ function handleLiveScoreUpdate({ points }) {
   if (player) player.score += points;
 }
 
+// --- HÀM XỬ LÝ GAME STATE (ĐÃ CẬP NHẬT LOGIC ANIMATION) ---
+const onGameStateHandler = async (data) => {
+    if (gamePhase.value === 'animation' && !animationFinished.value) {
+        console.log("⏳ Animation đang chạy, tạm hoãn update game state...");
+        pendingGameState.value = data;
+        return;
+    }
+    const hasAnimationData = data.moveHistory && data.moveHistory.length > 0;
+    if (hasAnimationData) isAnimating.value = true;
+
+    // Fix F5: Cập nhật ngay nếu chưa có bàn cờ
+    if (board.value.length === 0) {
+        handleStateUpdate(data); 
+        await nextTick(); 
+    }
+    
+    if (data.moveHistory && data.moveHistory.length > 0) {
+      await nextTick();
+      if (gameBoardRef.value) {
+        // Dự đoán điểm số trước khi chạy animation để UI mượt mà (tùy chọn)
+        const actingPlayerId = data.startingPlayerId || currentTurnId.value;
+        const earnedPoints = calculateTurnPoints(data.moveHistory);
+        const pIndex = players.value.findIndex(p => p.id === actingPlayerId);
+        if (pIndex !== -1) {
+           let finalScoreObj = (players.value[pIndex].symbol === 'X') ? data.scores.player1 : data.scores.player2;
+           const finalTotalScore = finalScoreObj ? (finalScoreObj.quan * 5 + finalScoreObj.dan) : 0;
+           // Trừ tạm điểm để cộng dần trong lúc animation chạy
+           players.value[pIndex].score = finalTotalScore - earnedPoints;
+        }
+
+        try {
+            isAnimating.value = true;
+            console.log(`🎬 Running live animation...`);
+            // Chạy animation
+            await gameBoardRef.value.runMoveAnimation(data.moveHistory, 0, actingPlayerId);
+            
+            // [QUAN TRỌNG] Force update bàn cờ lần cuối để khớp 100% với dữ liệu server
+            // Tránh trường hợp animation bị lệch 1-2 viên đá nhỏ
+            if (gameBoardRef.value) {
+               gameBoardRef.value.displayBoard = JSON.parse(JSON.stringify(data.board));
+            }
+        } catch (error) {
+            console.error("⚠️ Animation error (F5 Replay):", error);
+        } finally {
+            handleStateUpdate(data);
+            
+            // 👇 [FIX QUAN TRỌNG]: Gọi hàm chuẩn từ socketService 👇
+            socketService.notifyAnimationFinished(roomId.value);
+            // 👆 -------------------------------------------- 👆
+            
+            isAnimating.value = false;
+            
+            // Nếu có timer đang chờ (do bị hoãn lúc diễn hoạt) thì chạy ngay
+            if (pendingTimerData.value) {
+                console.log("⏱️ Starting pending timer...", pendingTimerData.value);
+                startTimerCountDown(pendingTimerData.value); 
+                pendingTimerData.value = null;
+            }
+        }
+      } else {
+          handleStateUpdate(data);
+      }
+    } else {
+        // Trường hợp F5 hoặc Reconnect mà đang giữa turn đối thủ
+        if (data.isWaitingForAnimation) {
+          console.log("🛑 Đã F5: Hiện kết quả và chờ đối thủ diễn hoạt xong...");
+          isServerWaiting.value = true;       
+          timerValue.value = null;            
+          clearInterval(timerInterval.value); 
+        }
+        handleStateUpdate(data);
+    }
+};
+
 function handleStateUpdate(state) {
   gamePhase.value = "playing";
   if (state.board) board.value = state.board;
@@ -415,7 +418,7 @@ function handleStateUpdate(state) {
     });
   }
   currentTurnId.value = state.nextTurnPlayerId || state.startingPlayerId;
-  // 👇👇👇 [SỬA ĐOẠN NÀY: Logic chặn Timer] 👇👇👇
+  
   let timerData = null;
   if (state.currentTurnDeadline) {
       timerData = { deadline: state.currentTurnDeadline };
@@ -424,20 +427,11 @@ function handleStateUpdate(state) {
   }
 
   if (timerData) {
-      // Nếu đang diễn hoạt thì ĐỪNG chạy timer ngay, hãy lưu lại
       if (isAnimating.value) {
           pendingTimerData.value = timerData;
       } else {
-          // Nếu không diễn hoạt thì chạy luôn
           startTimerCountDown(timerData);
       }
-  }
-  // 👆👆👆 ------------------------------------ 👆👆👆
-  if (state.currentTurnDeadline) {
-      startTimerCountDown({ deadline: state.currentTurnDeadline });
-  } 
-  else if (state.remainingTime) {
-      startTimerCountDown({ duration: state.remainingTime });
   }
   
   if (state.gameMessage) {
@@ -461,11 +455,10 @@ function handleRpsAnimationEnd() {
     
     rpsResultData.value = null;
     setTimeout(() => { rpsResult.value = null; }, 5000);
-  } else {
-    console.warn("RPS Data is missing!");
   }
   
   if (pendingGameState.value) {
+    // Logic xử lý nếu có state mới ùa về trong lúc đang hoạt hình RPS
     if (gameBoardRef.value && pendingGameState.value.moveHistory) {
          isAnimating.value = true;
          gameBoardRef.value.runMoveAnimation(pendingGameState.value.moveHistory)
@@ -532,11 +525,11 @@ function resetState() {
   showBorrowModal.value = false;
   borrowConfirmCallback.value = null;
   isServerWaiting.value = false;
-  
-  // Reset chat mobile state
   showMobileChat.value = false;
   hasUnreadMessages.value = false;
 }
+
+// --- CÁC HÀM EMIT (GỌI SERVER QUA SERVICE) ---
 
 function handleRpsChoice(choice) {
   socketService.submitRps(roomId.value, choice);
@@ -557,10 +550,13 @@ function handleMove(index) {
 function onDirectionChosen(direction) {
   showDirectionModal.value = false;
   if (selectedCellIndex.value === null || !direction) return;
+  
+  // Gọi qua service
   socketService.makeMove(roomId.value, {
     cellIndex: selectedCellIndex.value,
     direction: direction,
   });
+  
   clearInterval(timerInterval.value);
   timerValue.value = null;
   selectedCellIndex.value = null;
@@ -629,6 +625,7 @@ function handleLeaveRequest() {
 
 function confirmLeaveRoom() {
     showConfirmLeave.value = false;
+    // Gọi qua service
     socketService.leaveRoom();
     router.push("/play"); 
 }
@@ -673,8 +670,6 @@ function fallbackCopyText(text) {
     showCustomNotification("Lỗi", "Không thể sao chép mã phòng.");
   }
 }
-
-// Trong script setup của GameRoom.vue
 
 // Watcher: Tắt thông báo tin nhắn mới khi mở chat mobile
 watch(showMobileChat, (val) => {

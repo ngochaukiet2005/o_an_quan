@@ -56,7 +56,11 @@ export class OAnQuanGame {
 
   // Hàm ghi log hành động (dùng nội bộ)
   _logAction(type, data = {}) {
-    this.moveHistory.push({ type, ...data });
+    this.moveHistory.push({ 
+      type,
+      player: this.state.currentPlayer,
+       ...data 
+      });
   }
   // =============================
 

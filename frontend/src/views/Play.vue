@@ -111,14 +111,15 @@ function cancelSearch() {
   isSearching.value = false;
   searchStatus.value = "";
   
-  const socket = socketService.getSocket();
+  //const socket = socketService.getSocket();
   
   // 1. Ngắt kết nối để Server tự động xóa khỏi hàng chờ (matchmakingQueue)
-  socket.disconnect();
+  //socket.disconnect();
   
   // 2. Kết nối lại ngay lập tức (quan trọng)
   // Sửa lỗi: Gọi trực tiếp socket.connect() thay vì socketService.connect()
-  socket.connect();
+  //socket.connect();
+  socketService.forceReconnect();
 }
 
 function handleCreateRoom() {

@@ -129,6 +129,7 @@ const isOpponentTurn = computed(() => {
 const displayBoard = ref([]);
 
 watch(() => props.board, (newVal) => {
+  if (handState.show) return;
   if (newVal && newVal.length > 0) {
     displayBoard.value = JSON.parse(JSON.stringify(newVal));
     isProcessing.value = false;
@@ -193,9 +194,34 @@ const runMoveAnimation = async (history, skipTime = 0, movingPlayerId = null) =>
 
   for (const action of history) {
     const { type, index, count, direction, start, eatenDan, eatenQuan } = action;
-
     // --- LOGIC 1: XỬ LÝ VAY MƯỢN (BORROW) ---
     if (type === 'borrow') {
+        handState.show = false;
+        if (action.player !== undefined) {
+          handState.useCustomRotation = true;
+          handState.customIsRotated = (action.player !== myPlayerNumber.value);
+        }
+        // Chỉ hiện modal nếu không phải đang tua nhanh (skipTime)
+        if (!skipTime || skipTime === 0) {
+          // Dừng lại chờ người chơi bấm nút "Đồng ý" ở Modal
+          await new Promise((resolve) => {
+            emits('show-borrow-confirm', { player: action.player, callback: resolve });
+          });
+        }
+
+        // Sau khi bấm Đồng ý, bắt đầu diễn hoạt
+        handState.holdingCount = 5;
+        handState.show = true;
+    
+        // Ép cập nhật lại rotation cho đúng người vay
+        if (action.player !== undefined) {
+          handState.customIsRotated = (action.player !== myPlayerNumber.value);
+        }
+
+        // Reset số dân về 0 để diễn hoạt rải (quan trọng)
+        action.indices.forEach(idx => {
+          if (displayBoard.value[idx]) displayBoard.value[idx].dan = 0;
+        });
         // Nếu đã qua thời gian này -> Thực hiện ngay lập tức (SKIP)
         if (timePassed + 2000 < skipTime) { 
              // (Giả định animation này tốn khoảng 2000ms)
