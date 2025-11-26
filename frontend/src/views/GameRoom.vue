@@ -284,6 +284,18 @@ function setupSocketListeners() {
           router.push("/play");
       });
   });
+  socketService.onTriggerBorrowAnimation(() => {
+      console.log("🚀 Server cho phép chạy Animation vay quân!");
+
+      // 1. Tắt bảng thông báo
+      showBorrowModal.value = false;
+
+      // 2. Thực hiện callback để GameBoard tiếp tục chạy (rải sỏi)
+      if (borrowConfirmCallback.value) {
+          borrowConfirmCallback.value(); 
+          borrowConfirmCallback.value = null;
+      }
+  });
 }
 
 function startTimerCountDown(data) {
@@ -486,12 +498,14 @@ function handleShowBorrowConfirm({ player, callback }) {
     if (player === 2) actorId = p2 ? p2.id : null;
 
     const isMe = actorId === playerId.value;
-
-    borrowTitle.value = "Hết quân!";
+    borrowTitle.value = isMe ? "Cần Gây Giống!" : "Đối thủ gây giống";
+    //borrowTitle.value = "Hết quân!";
     if (isMe) {
-        borrowMessage.value = "Bạn đã hết quân trên 5 ô dân! Hệ thống sẽ tự động lấy 5 điểm (hoặc vay nợ) để rải quân.";
+        // Logic cho người chơi hiện tại (P1 hết quân -> P1 thấy bảng này)
+        borrowMessage.value = "5 ô dân của bạn đã hết quân. Hệ thống sẽ tự động lấy 5 điểm (hoặc vay nợ) để rải quân.";
     } else {
-        borrowMessage.value = "Đối thủ đã hết quân và phải thực hiện gây giống/vay quân.";
+        // Logic cho đối thủ (P1 hết quân -> P2 thấy bảng này để biết tình hình)
+        borrowMessage.value = "Đối thủ đã hết quân và phải thực hiện gây giống/vay quân để tiếp tục.";
     }
     
     borrowConfirmCallback.value = callback;
@@ -499,11 +513,14 @@ function handleShowBorrowConfirm({ player, callback }) {
 }
 
 function confirmBorrow() {
-    showBorrowModal.value = false;
-    if (borrowConfirmCallback.value) {
+    //showBorrowModal.value = false;
+    /*if (borrowConfirmCallback.value) {
         borrowConfirmCallback.value(); 
         borrowConfirmCallback.value = null;
-    }
+    }*/
+    borrowTitle.value = "Đang chờ...";
+    borrowMessage.value = "Đã xác nhận! Đang chờ đối thủ đồng ý để bắt đầu...";
+    socketService.confirmBorrow(roomId.value);
 }
 
 function resetState() {

@@ -25,25 +25,27 @@ export class GameWithHistory extends OAnQuanGame {
   checkAndHandleBorrowing(player) {
     // Kiểm tra trạng thái TRƯỚC khi xử lý logic gốc
     const civilIndices = this.getPlayerCivilianSquares(player);
-    const wasAllEmpty = civilIndices.every((i) => this.state.board[i].dan === 0 && this.state.board[i].quan === 0);
+    // Kiểm tra xem 5 ô dân có thực sự trống không (dan=0 và quan=0)
+    const wasAllEmpty = civilIndices.every((i) => {
+        const cell = this.state.board[i];
+        return cell.dan === 0 && cell.quan === 0;
+    });
     
     // Gọi logic gốc của OAnQuanGame
-    const result = super.checkAndHandleBorrowing(player);
-
+    const isLose = super.checkAndHandleBorrowing(player);
     // Nếu trước đó trống hết, và giờ đã được điền quân (nghĩa là đã vay/gây giống thành công)
     // và game chưa kết thúc
-    if (wasAllEmpty && !result && !this.state.isGameOver) {
-         // Kiểm tra xem ô đầu tiên có quân chưa để chắc chắn
-         if (this.state.board[civilIndices[0]].dan > 0) {
-             // Đẩy sự kiện vay vào đầu danh sách lịch sử (vì nó xảy ra trước khi đi)
-             this.moveHistory.push({
-                 type: "borrow",
-                 player: player,
-                 indices: civilIndices // [1,2,3,4,5] hoặc [7,8,9,10,11]
-             });
-         }
+    if (wasAllEmpty && !isLose) {
+         // Đẩy sự kiện 'borrow' vào danh sách lịch sử
+         // Lưu ý: Hành động này sẽ được Client xử lý đầu tiên khi nhận được update
+         this.moveHistory.push({
+             type: "borrow",
+             player: player,
+             indices: civilIndices, // [1,2,3,4,5] hoặc [7,8,9,10,11]
+             timestamp: Date.now()
+         });
     }
-    return result;
+    return isLose;
   }
   // ---------------------
   // THÊM PHƯƠNG THỨC NÀY
@@ -240,6 +242,7 @@ export class GameWithHistory extends OAnQuanGame {
       this.calculateFinalScores();
     } else {
       this.state.currentPlayer = this.getOpponent(currentPlayer);
+      this.checkAndHandleBorrowing(this.state.currentPlayer);
       if (!this.state.gameMessage) {
         this.state.gameMessage = `Đến lượt Người chơi ${this.state.currentPlayer}.`;
       }

@@ -119,6 +119,10 @@ function disconnect() {
     socket.disconnect();
   }
 }
+function confirmBorrow(roomId) {
+  log('SEND', 'game:confirm_borrow', roomId);
+  getSocket().emit("game:confirm_borrow", { roomId });
+}
 /* =================================================================
    2. LISTENERS (NHẬN VỀ - ON)
    ================================================================= */
@@ -198,7 +202,9 @@ function onKicked(cb) {
 function onQueueUpdate(cb) {
   getSocket().on("queue_update", cb);
 }
-
+function onTriggerBorrowAnimation(cb) {
+  getSocket().on("game:trigger_borrow_animation", cb);
+}
 // Cleanup
 function offAll() {
   if (!socket) return;
@@ -227,7 +233,7 @@ export default {
   submitRps,
   sendMessage,
   notifyAnimationFinished, // <--- MỚI
-
+  confirmBorrow,           // <--- MỚI
   // Listeners
   onRoomCreated,
   onRoomJoined,
@@ -243,7 +249,7 @@ export default {
   onGameOver,  // <--- MỚI
   onTimerStart, // <--- MỚI
   onTimerClear, // <--- MỚI
-  
+  onTriggerBorrowAnimation,
   offAll,
   forceReconnect,
   disconnect,

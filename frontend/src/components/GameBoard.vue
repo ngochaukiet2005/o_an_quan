@@ -201,6 +201,9 @@ const runMoveAnimation = async (history, skipTime = 0, movingPlayerId = null) =>
           handState.useCustomRotation = true;
           handState.customIsRotated = (action.player !== myPlayerNumber.value);
         }
+        action.indices.forEach(idx => {
+          if (displayBoard.value[idx]) displayBoard.value[idx].dan = 0;
+        });
         // Chỉ hiện modal nếu không phải đang tua nhanh (skipTime)
         if (!skipTime || skipTime === 0) {
           // Dừng lại chờ người chơi bấm nút "Đồng ý" ở Modal
@@ -233,13 +236,13 @@ const runMoveAnimation = async (history, skipTime = 0, movingPlayerId = null) =>
              continue; // Bỏ qua diễn hoạt
         }
 
-        handState.show = false;
+        /*handState.show = false;
         // Nếu đang tua thì không hiện popup confirm nữa (coi như đã đồng ý)
         if (!skipTime || skipTime === 0) {
             await new Promise((resolve) => {
                 emits('show-borrow-confirm', { player: action.player, callback: resolve });
             });
-        }
+        }*/
 
         handState.holdingCount = 5;
         handState.show = true;

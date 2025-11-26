@@ -29,6 +29,7 @@ export const handleCreateRoom = (socket, playerName) => {
     disconnectTimeout: null,
     isWaitingForAnimation: false,
     animationTimeout: null,
+    borrowConfirmations: new Set(),
   };
   rooms.set(roomId, room);
   socket.join(roomId);
@@ -112,6 +113,7 @@ export const handleJoinMatchmaking = (io, socket, playerName) => {
       status: "rps",
       rpsGame: null,
       nextTurnPlayerId: null,
+      borrowConfirmations: new Set(),
     };
     rooms.set(roomId, room);
     socket1.join(roomId);
@@ -718,6 +720,25 @@ export function setupSocketHandlers(io) {
 
     socket.on("disconnect", (reason) => {
       handleDisconnect(io, socket, reason);
+    });
+    socket.on("game:confirm_borrow", ({ roomId }) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+
+    // 1. Ghi nhận người chơi này đã bấm nút
+    room.borrowConfirmations.add(socket.id);
+    console.log(`[BORROW] Player ${socket.id} confirmed. Total: ${room.borrowConfirmations.size}/${room.players.length}`);
+
+    // 2. Nếu đủ 2 người xác nhận (hoặc đủ số người trong phòng)
+    if (room.borrowConfirmations.size >= room.players.length) {
+        console.log(`[BORROW] All confirmed. Triggering animation.`);
+
+        // Gửi tín hiệu cho TẤT CẢ client bắt đầu chạy animation cùng lúc
+        io.to(roomId).emit("game:trigger_borrow_animation");
+
+        // Reset lại bộ đếm để dùng cho lần sau
+        room.borrowConfirmations.clear();
+    }
     });
   });
 }
