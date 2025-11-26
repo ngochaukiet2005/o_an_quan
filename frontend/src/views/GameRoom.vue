@@ -372,7 +372,7 @@ const onGameStateHandler = async (data) => {
             isAnimating.value = true;
             console.log(`🎬 Running live animation...`);
             // Chạy animation
-            await gameBoardRef.value.runMoveAnimation(data.moveHistory, 0, actingPlayerId);
+            await gameBoardRef.value.runMoveAnimation(data.moveHistory, 0, null);
             
             // [QUAN TRỌNG] Force update bàn cờ lần cuối để khớp 100% với dữ liệu server
             // Tránh trường hợp animation bị lệch 1-2 viên đá nhỏ

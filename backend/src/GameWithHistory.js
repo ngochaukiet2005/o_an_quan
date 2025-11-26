@@ -113,7 +113,7 @@ export class GameWithHistory extends OAnQuanGame {
     const pickedDan = this.state.board[squareIndex].dan;
     
     // [LOG] Bốc quân
-    this.moveHistory.push({ type: "pickup", index: squareIndex, count: pickedDan });
+    this.moveHistory.push({ type: "pickup", player: currentPlayer, index: squareIndex, count: pickedDan });
     
     this.state.board[squareIndex].dan = 0;
 
@@ -121,6 +121,7 @@ export class GameWithHistory extends OAnQuanGame {
     // [LOG] Rải quân (Ghi lại vị trí bắt đầu rải thực tế là ô kế tiếp)
     this.moveHistory.push({ 
         type: "spread", 
+        player: currentPlayer,
         start: this.getValidIndex(squareIndex + dir), 
         count: pickedDan, 
         direction: dir 
@@ -149,13 +150,14 @@ export class GameWithHistory extends OAnQuanGame {
         const extraDan = nextSq.dan;
         
         // [LOG] Bốc tiếp
-        this.moveHistory.push({ type: "pickup", index: next, count: extraDan });
+        this.moveHistory.push({ type: "pickup", player: currentPlayer, index: next, count: extraDan });
 
         this.state.board[next].dan = 0;
 
         // [LOG] Rải tiếp
         this.moveHistory.push({ 
             type: "spread", 
+            player: currentPlayer,
             start: this.getValidIndex(next + dir), 
             count: extraDan, 
             direction: dir 
@@ -171,7 +173,7 @@ export class GameWithHistory extends OAnQuanGame {
 
       if (nextIsEmpty && next2HasPieces) {
         // 👇👇👇 THÊM MỚI: Ghi nhận hành động đập tay vào ô trống (next) 👇👇👇
-        this.moveHistory.push({ type: "move_to_empty", index: next }); 
+        this.moveHistory.push({ type: "move_to_empty", player: currentPlayer, index: next }); 
         // 👆👆👆 --------------------------------------------------- 👆👆👆
         // Ăn lần 1
         const { eatenDan, eatenQuan } = this.captureAt(next2, currentPlayer);
@@ -180,6 +182,7 @@ export class GameWithHistory extends OAnQuanGame {
         // [LOG] Ăn
         this.moveHistory.push({ 
             type: "capture", 
+            player: currentPlayer,
             index: next2, 
             eatenDan, 
             eatenQuan 
@@ -200,7 +203,7 @@ export class GameWithHistory extends OAnQuanGame {
 
           if (chainNextIsEmpty && chainNext2HasPieces) {
             // 👇👇👇 THÊM MỚI: Ghi nhận đập tay khi ăn dây 👇👇👇
-            this.moveHistory.push({ type: "move_to_empty", index: chainNext });
+            this.moveHistory.push({ type: "move_to_empty", player: currentPlayer, index: chainNext });
             // 👆👆👆 ---------------------------------------- 👆👆👆
             const res = this.captureAt(chainNext2, currentPlayer);
             this.state.gameMessage += ` (Ăn dây ô ${chainNext2})`;
@@ -208,6 +211,7 @@ export class GameWithHistory extends OAnQuanGame {
             // [LOG] Ăn dây
             this.moveHistory.push({ 
                 type: "capture", 
+                player: currentPlayer,
                 index: chainNext2, 
                 eatenDan: res.eatenDan, 
                 eatenQuan: res.eatenQuan 
